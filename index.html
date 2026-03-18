@@ -13,14 +13,15 @@
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     html,body{width:100%;background:#020810;overflow-x:hidden;font-family:'Space Mono',monospace;color:#fff}
 
-    /* ── Background image ── swap bg.jpg with your filename ── */
+    /* ── Background image — overscaled so rotation + drift never shows edges ── */
     #bg-img{
       position:fixed;inset:0;z-index:0;
       background-image:url('siral.png');
       background-size:cover;
       background-position:center;
-      transform:scale(1.08);
+      transform:scale(1.28);
       will-change:transform;
+      transition:filter 2s ease;
     }
     /* ── Dark overlay on top of image ── */
     #bg-overlay{
@@ -76,16 +77,77 @@ const CARDS = [
 
 const isMob = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-/* ── Parallax: image drifts up 40px over full scroll ── */
+/* ─────────────────────────────────────────────────────────────────────
+   BACKGROUND — breathing zoom + scroll-aware scale + mouse parallax
+   Rest:    slowly zooms OUT (exhale), gentle rock
+   Scroll:  zooms IN (inhale), rotation kicks in
+*/
 const bgImg = document.getElementById('bg-img');
-let lastParY = 0;
+let ambientT   = 0;
+let targetP    = 0;
+
+/* Scroll activity detection */
+let isScrolling    = false;
+let scrollStopTimer = null;
+let scrollVelocity  = 0;
+let lastScrollP     = 0;
+let currentScale    = 1.28;  // lerp target for scale
+
+/* Mouse position normalised -1..1 */
+let mouseNX = 0, mouseNY = 0, smoothMouseX = 0, smoothMouseY = 0;
+window.addEventListener('mousemove', e => {
+  mouseNX = (e.clientX / innerWidth)  * 2 - 1;   // -1 left, +1 right
+  mouseNY = (e.clientY / innerHeight) * 2 - 1;   // -1 top,  +1 bottom
+});
+
 function updateParallax(p) {
-  const y = p * -40;
-  if (Math.abs(y - lastParY) > 0.3) {
-    bgImg.style.transform = `scale(1.08) translateY(${y}px)`;
-    lastParY = y;
+  /* Detect scroll velocity */
+  scrollVelocity = Math.abs(p - lastScrollP);
+  lastScrollP = p;
+
+  if (scrollVelocity > 0.0001) {
+    isScrolling = true;
+    clearTimeout(scrollStopTimer);
+    scrollStopTimer = setTimeout(() => { isScrolling = false; }, 150);
   }
+
+  /* Scale target:
+     scrolling → zoom IN toward 1.36
+     resting   → zoom OUT toward 1.22 (the "exhale") */
+  const scaleTarget = isScrolling ? 1.36 : 1.22;
+  currentScale += (scaleTarget - currentScale) * 0.025; // slow lerp
+
+  /* Ambient sine waves — always running */
+  const driftX = Math.sin(ambientT * 0.5)  * 7;
+  const driftY = Math.sin(ambientT * 0.35) * 9;
+  const driftR = Math.sin(ambientT * 0.25) * 2.0;  // slow ambient rock
+
+  /* Scroll-driven transforms */
+  const scrollY = p * -60;
+  const scrollR = p * 12;
+
+  /* Smooth mouse sway — very subtle, ±4px / ±0.8deg */
+  smoothMouseX += (mouseNX - smoothMouseX) * 0.04;
+  smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
+  const mouseOffX = smoothMouseX * 4;
+  const mouseOffR = smoothMouseX * 0.8;
+
+  bgImg.style.transform =
+    `scale(${currentScale.toFixed(4)})` +
+    ` translateX(${(driftX + mouseOffX).toFixed(2)}px)` +
+    ` translateY(${(scrollY + driftY).toFixed(2)}px)` +
+    ` rotate(${(scrollR + driftR + mouseOffR).toFixed(3)}deg)`;
+
+  /* Brightness: slightly brighter when scrolling (alive feeling) */
+  const bright = isScrolling ? 1.06 : 1.0;
+  bgImg.style.filter = `brightness(${bright}) saturate(${isScrolling ? 1.08 : 1.0})`;
 }
+
+(function ambientLoop() {
+  ambientT += 0.007;
+  updateParallax(targetP);
+  requestAnimationFrame(ambientLoop);
+})();
 
 /* ─────────────────────────────────────────────────────────────────────
    THREE.JS — alpha:true so WebGL canvas is transparent, bg shows through
@@ -246,8 +308,8 @@ function drawCard(idx,sp){
 /* ─────────────────────────────────────────────────────────────────────
    SPIRAL
 */
-const CARD_SPACING=1.8,SPIRAL_RADIUS=5.0,ANGLE_FACTOR=0.7,FADE_RANGE=1.5;
-const INITIAL_OFFSET=CARD_SPACING*0.8;
+const CARD_SPACING=1.8,SPIRAL_RADIUS=5.0,ANGLE_FACTOR=0.7,FADE_RANGE=4.0;
+const INITIAL_OFFSET=0;
 const TOTAL_RISE=(CARDS.length-1)*CARD_SPACING+INITIAL_OFFSET+CARD_SPACING;
 const baseYArr=CARDS.map((_,i)=>-i*CARD_SPACING-INITIAL_OFFSET);
 
@@ -289,20 +351,20 @@ lenis.on('scroll',ScrollTrigger.update);
 gsap.ticker.add(t=>lenis.raf(t*1000));
 gsap.ticker.lagSmoothing(0);
 
-let targetP=0;
 ScrollTrigger.create({
   trigger:'#wrap',start:'top top',end:'bottom bottom',scrub:0.5,
   onUpdate:self=>{
     targetP=self.progress;
     document.getElementById('bar').style.width=(targetP*100)+'%';
     document.getElementById('hint').style.opacity=targetP>0.03?'0':'1';
-    updateParallax(targetP);
     cardObjs.forEach(({pivot,mat,baseY:by,idx})=>{
       const y=by+targetP*TOTAL_RISE,angle=-y*ANGLE_FACTOR;
       pivot.position.set(Math.sin(angle)*SPIRAL_RADIUS,y,Math.cos(angle)*SPIRAL_RADIUS);
-      pivot.rotation.y=angle;pivot.rotation.x=Math.sin(y*0.5)*0.1;
-      const op=Math.pow(Math.max(0,1-Math.abs(y)/FADE_RANGE),2.5);
-      mat.opacity=op*0.94;pivot.scale.setScalar(1+op*0.06);pivot.visible=op>0.01;
+      pivot.rotation.y=angle;
+      pivot.rotation.x=Math.sin(y*0.5)*0.1;
+      /* Softer power (1.4 vs 2.5) so adjacent cards are gently visible */
+      const op=Math.pow(Math.max(0,1-Math.abs(y)/FADE_RANGE),1.4);
+      mat.opacity=op*0.94;pivot.scale.setScalar(1+op*0.06);pivot.visible=op>0.008;
       const s=cardState[idx];
       if(op>0.04)s.sp=Math.min(1,s.sp+0.022);
       else s.sp=Math.max(0,s.sp-0.06);
@@ -317,13 +379,23 @@ let tk=0,fc=0;
 (function loop(){
   requestAnimationFrame(loop);
   tk+=0.005;fc++;
+
+  /* Smooth mouse → card tilt: ±0.06 rad X, ±0.04 rad Y — very subtle */
+  const tiltX =  smoothMouseY * 0.06;
+  const tiltY =  smoothMouseX * 0.04;
+
   if(fc%2===0){
     cardObjs.forEach(({mat,idx,pivot})=>{
       if(!pivot.visible)return;
       const s=cardState[idx];
       if(s.sp>0.001){drawCard(idx,s.sp);s.tex.needsUpdate=true;mat.map=s.tex;}
+      /* Apply mouse tilt on top of existing scroll rotation */
+      pivot.rotation.x += (tiltX - pivot.rotation.x) * 0.08;
+      // Y tilt is already set by scroll, nudge it slightly
+      pivot.rotation.y += tiltY * 0.04;
     });
   }
+
   camera.position.y=0.5+Math.sin(tk*0.2)*0.1;
   camera.lookAt(0,0,0);
   renderer.render(scene,camera);
