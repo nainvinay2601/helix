@@ -12,39 +12,55 @@
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     html,body{width:100%;background:#020810;overflow-x:hidden;font-family:'Space Mono',monospace;color:#fff}
-    #bg-video{position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;opacity:0;}
+
+    /* ── Background image ── swap bg.jpg with your filename ── */
+    #bg-img{
+      position:fixed;inset:0;z-index:0;
+      background-image:url('siral.png');
+      background-size:cover;
+      background-position:center;
+      transform:scale(1.08);
+      will-change:transform;
+    }
+    /* ── Dark overlay on top of image ── */
+    #bg-overlay{
+      position:fixed;inset:0;z-index:0;
+      background:linear-gradient(
+        to bottom,
+        rgba(2,8,16,0.55) 0%,
+        rgba(2,8,16,0.30) 40%,
+        rgba(2,8,16,0.70) 100%
+      );
+    }
+
     #cv{position:fixed;inset:0;z-index:1;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
-    #buf-overlay{
-      position:fixed;inset:0;z-index:999;background:#020810;
-      display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
-      transition:opacity 0.7s ease;
-    }
-    #buf-overlay.fade{opacity:0;pointer-events:none;}
-    #buf-bar-wrap{width:200px;height:1px;background:rgba(255,255,255,0.10);border-radius:2px;overflow:hidden;}
-    #buf-bar{height:100%;width:0%;background:rgba(0,220,255,0.8);border-radius:2px;}
-    #buf-label{font-size:8px;letter-spacing:6px;text-transform:uppercase;color:rgba(0,220,255,0.38);font-family:'Space Mono',monospace;}
-    #buf-pct{font-size:11px;letter-spacing:2px;color:rgba(0,220,255,0.22);font-family:'Space Mono',monospace;}
     #wrap{height:1000vh;position:relative;z-index:3;}
     #view{position:sticky;top:0;height:100vh;overflow:hidden;pointer-events:none;}
-    #hint{position:absolute;bottom:36px;left:50%;transform:translateX(-50%);font-size:8px;letter-spacing:5px;text-transform:uppercase;color:rgba(0,220,255,0.30);z-index:20;transition:opacity 0.4s;animation:fadeHint 2s ease-in-out infinite;white-space:nowrap;}
-    @keyframes fadeHint{0%,100%{opacity:.2}50%{opacity:.8}}
-    #next-section{position:relative;height:100vh;width:100%;background:#020810;color:white;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:10;font-family:'Syne',sans-serif;text-align:center;padding:2rem;border-top:1px solid rgba(0,200,255,0.12);}
-    #next-section h2{font-size:clamp(2.5rem,8vw,5rem);font-weight:800;letter-spacing:-0.02em;margin-bottom:1rem;background:linear-gradient(135deg,#00dcff,#7060ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;}
+    #hint{
+      position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
+      font-size:8px;letter-spacing:5px;text-transform:uppercase;
+      color:rgba(0,220,255,0.40);z-index:20;transition:opacity 0.4s;
+      animation:fadeHint 2s ease-in-out infinite;white-space:nowrap;
+    }
+    @keyframes fadeHint{0%,100%{opacity:.2}50%{opacity:.9}}
+    #next-section{
+      position:relative;height:100vh;width:100%;background:#020810;color:white;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      z-index:10;font-family:'Syne',sans-serif;text-align:center;padding:2rem;
+      border-top:1px solid rgba(0,200,255,0.12);
+    }
+    #next-section h2{
+      font-size:clamp(2.5rem,8vw,5rem);font-weight:800;letter-spacing:-0.02em;margin-bottom:1rem;
+      background:linear-gradient(135deg,#00dcff,#7060ff);-webkit-background-clip:text;-webkit-text-fill-color:transparent;
+    }
     #next-section p{font-size:clamp(0.85rem,2vw,1.1rem);max-width:580px;opacity:0.45;font-family:'Space Mono',monospace;}
   </style>
 </head>
 <body>
 
-<div id="buf-overlay">
-  <div id="buf-label">loading</div>
-  <div id="buf-bar-wrap"><div id="buf-bar"></div></div>
-  <div id="buf-pct">0%</div>
-</div>
-
-<video id="bg-video" src="midVideo.mp4" muted playsinline preload="auto"
-       webkit-playsinline crossorigin="anonymous"></video>
-
+<div id="bg-img"></div>
+<div id="bg-overlay"></div>
 <canvas id="cv"></canvas>
 <div id="bar"></div>
 <div id="wrap"><div id="view"><div id="hint">scroll to ascend</div></div></div>
@@ -60,250 +76,28 @@ const CARDS = [
 
 const isMob = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
-/* ─────────────────────────────────────────────────────────────────────
-   ATLAS CONFIG — HD 1280×720 tiles, 2 cols × 3 rows = 6 frames per atlas.
-   Atlas canvas = 2560×2160 — safely under the 4096 GPU texture limit on
-   all devices including old iPhones. ~300 frames → ~50 atlas textures.
-   All 50 fit in VRAM simultaneously (50 × 2560×2160×4 ≈ 1 GB on desktop,
-   ~260 MB on mobile at 640×360 fallback).
-   Zoom/crop baked into each tile at write time — UV math is just tile offset.
-   No imageOrientation flip — CanvasTexture's flipY handles orientation.
-*/
-const FRAME_W    = 1280;   // HD — never reduce this
-const FRAME_H    = 720;
-const ATLAS_COLS = 2;
-const ATLAS_ROWS = 3;
-const ATLAS_SIZE = ATLAS_COLS * ATLAS_ROWS;  // 6
-const ATLAS_W    = FRAME_W * ATLAS_COLS;     // 2560
-const ATLAS_H    = FRAME_H * ATLAS_ROWS;     // 2160
-
-const atlases       = [];
-let   totalFrames   = 0;
-let   framesDone    = false;
-let   pendingBitmaps = 0;
-let   overlayDismissed = false;
-let   estimatedFrames  = 300; // updated once we know duration
-
-const extractCanvas = document.createElement('canvas');
-extractCanvas.width = FRAME_W; extractCanvas.height = FRAME_H;
-const extractCtx = extractCanvas.getContext('2d', { willReadFrequently: false });
-
-const vid      = document.getElementById('bg-video');
-const bufBarEl = document.getElementById('buf-bar');
-const bufPctEl = document.getElementById('buf-pct');
-const bufLblEl = document.getElementById('buf-label');
-const bufOver  = document.getElementById('buf-overlay');
-
-function setProgress(pct, label) {
-  bufBarEl.style.width = Math.min(pct, 100) + '%';
-  bufPctEl.textContent = Math.round(Math.min(pct, 100)) + '%';
-  if (label) bufLblEl.textContent = label;
-}
-
-function dismissOverlay() {
-  if (overlayDismissed) return;
-  overlayDismissed = true;
-  lenis.options.duration = LENIS_FAST;
-  bufOver.classList.add('fade');
-  setTimeout(() => { if (bufOver.parentNode) bufOver.parentNode.removeChild(bufOver); }, 800);
-}
-
-/* ── GPU pre-warm: render every atlas before showing the page ── */
-function warmGPUThenDismiss() {
-  setProgress(100, 'ready');
-  let i = 0;
-  function warmNext() {
-    if (i >= atlases.length) {
-      paintFrameForProgress(0);
-      renderer.render(scene, camera);
-      dismissOverlay();
-      return;
-    }
-    const atlas = atlases[i++];
-    vPlane.material.map = atlas.tex;
-    vPlane.material.needsUpdate = true;
-    atlas.tex.needsUpdate = true;
-    renderer.render(scene, camera);
-    requestAnimationFrame(warmNext);
+/* ── Parallax: image drifts up 40px over full scroll ── */
+const bgImg = document.getElementById('bg-img');
+let lastParY = 0;
+function updateParallax(p) {
+  const y = p * -40;
+  if (Math.abs(y - lastParY) > 0.3) {
+    bgImg.style.transform = `scale(1.08) translateY(${y}px)`;
+    lastParY = y;
   }
-  warmNext();
-}
-
-function maybeFinish() {
-  if (!framesDone || pendingBitmaps > 0) return;
-  warmGPUThenDismiss();
-}
-
-/* ── Atlas helpers ── */
-function getOrCreateAtlas(atlasIdx) {
-  if (!atlases[atlasIdx]) {
-    const canvas = document.createElement('canvas');
-    canvas.width = ATLAS_W; canvas.height = ATLAS_H;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, ATLAS_W, ATLAS_H);
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.minFilter = tex.magFilter = THREE.LinearFilter;
-    tex.generateMipmaps = false;
-    atlases[atlasIdx] = { canvas, ctx, tex };
-  }
-  return atlases[atlasIdx];
-}
-
-function writeFrameToAtlas(frameIdx, bmp) {
-  const atlasIdx = Math.floor(frameIdx / ATLAS_SIZE);
-  const atlas    = getOrCreateAtlas(atlasIdx);
-  const tileIdx  = frameIdx % ATLAS_SIZE;
-  const col      = tileIdx % ATLAS_COLS;
-  const row      = Math.floor(tileIdx / ATLAS_COLS);
-  const tx       = col * FRAME_W;
-  const ty       = row * FRAME_H;
-
-  /* Bake zoom/crop into tile — 1.14× zoom, 18% upward bias */
-  const scale = 1.14;
-  const dw    = FRAME_W * scale, dh = FRAME_H * scale;
-  const dx    = tx - (dw - FRAME_W) / 2;
-  const dy    = ty - (dh - FRAME_H) * 0.18;
-
-  atlas.ctx.save();
-  atlas.ctx.beginPath();
-  atlas.ctx.rect(tx, ty, FRAME_W, FRAME_H);
-  atlas.ctx.clip();
-  atlas.ctx.drawImage(bmp, dx, dy, dw, dh);
-  atlas.ctx.restore();
-  atlas.tex.needsUpdate = true;
-  bmp.close();
-
-
-}
-
-function captureFrameToAtlas(frameIdx) {
-  createImageBitmap(extractCanvas)
-    .then(bmp => {
-      writeFrameToAtlas(frameIdx, bmp);
-      pendingBitmaps--;
-      const pct = 40 + (frameIdx / Math.max(estimatedFrames, 1)) * 55;
-      setProgress(pct);
-      maybeFinish();
-    })
-    .catch(() => { pendingBitmaps--; maybeFinish(); });
-}
-
-/* ── Phase 1: download (0–40%) ── */
-function waitForFullBuffer(onReady) {
-  function checkBuffered() {
-    if (!vid.duration || vid.duration === Infinity) return false;
-    if (!vid.buffered.length) return false;
-    return vid.buffered.end(vid.buffered.length - 1) >= vid.duration * 0.99;
-  }
-  function onProgress() {
-    if (!vid.duration) return;
-    const end = vid.buffered.length ? vid.buffered.end(vid.buffered.length - 1) : 0;
-    setProgress((end / vid.duration) * 40, 'downloading');
-    if (checkBuffered()) { cleanup(); setProgress(40, 'extracting frames'); onReady(); }
-  }
-  function onCPT() {
-    if (isMob && !checkBuffered()) return;
-    cleanup(); setProgress(40, 'extracting frames'); onReady();
-  }
-  function cleanup() {
-    vid.removeEventListener('progress', onProgress);
-    vid.removeEventListener('canplaythrough', onCPT);
-  }
-  if (checkBuffered()) { setProgress(40, 'extracting frames'); onReady(); return; }
-  vid.addEventListener('progress', onProgress);
-  vid.addEventListener('canplaythrough', onCPT);
-}
-
-/* ── Phase 2: extract (40–95%) ── */
-function startExtraction() {
-  if (!('requestVideoFrameCallback' in vid)) {
-    framesDone = true; dismissOverlay(); startLegacyPaint(); return;
-  }
-
-  estimatedFrames = Math.ceil((vid.duration || 10) * 24);
-  vid.muted = true; vid.currentTime = 0;
-  let lastCapturedTime = -1;
-
-  function onFrame(now, meta) {
-    const t = meta.mediaTime, dur = vid.duration || 1;
-    if (t !== lastCapturedTime) {
-      lastCapturedTime = t;
-      extractCtx.drawImage(vid, 0, 0, FRAME_W, FRAME_H);
-      const fi = totalFrames++;
-      pendingBitmaps++;
-      captureFrameToAtlas(fi);
-    }
-    if (Math.min(t / dur, 1) < 0.999) {
-      vid.requestVideoFrameCallback(onFrame);
-    } else {
-      vid.pause();
-      framesDone = true;
-      maybeFinish();
-    }
-  }
-
-  vid.requestVideoFrameCallback(onFrame);
-  vid.playbackRate = isMob ? 2 : 8;
-  const p = vid.play();
-  if (p) p.catch(() => {
-    vid.playbackRate = 1;
-    vid.play().catch(() => { framesDone = true; maybeFinish(); });
-  });
-}
-
-vid.addEventListener('loadedmetadata', () => waitForFullBuffer(startExtraction), { once: true });
-setTimeout(() => { if (!overlayDismissed) { framesDone = true; pendingBitmaps = 0; warmGPUThenDismiss(); } }, 30000);
-vid.load();
-
-/* ── Legacy fallback ── */
-function startLegacyPaint() {
-  const lb = document.createElement('canvas'); lb.width = FRAME_W; lb.height = FRAME_H;
-  const lc = lb.getContext('2d');
-  const lt = new THREE.CanvasTexture(lb);
-  lt.minFilter = lt.magFilter = THREE.LinearFilter;
-  vPlane.material.map = lt; vPlane.material.needsUpdate = true;
-  vid.addEventListener('seeked', () => { lc.drawImage(vid, 0, 0, FRAME_W, FRAME_H); lt.needsUpdate = true; });
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   FRAME LOOKUP — tile UV select, no zoom math (baked at write time)
-*/
-let currentAtlasIdx = -1;
-const TILE_U = 1 / ATLAS_COLS;
-const TILE_V = 1 / ATLAS_ROWS;
-
-function paintFrameForProgress(p) {
-  if (totalFrames === 0) return;
-  const frameIdx  = Math.min(Math.round(p * (totalFrames - 1)), totalFrames - 1);
-  const atlasIdx  = Math.floor(frameIdx / ATLAS_SIZE);
-  const atlas     = atlases[atlasIdx];
-  if (!atlas) return;
-
-  const tileIdx   = frameIdx % ATLAS_SIZE;
-  const col       = tileIdx % ATLAS_COLS;
-  const canvasRow = Math.floor(tileIdx / ATLAS_COLS);
-  const uvRow     = (ATLAS_ROWS - 1) - canvasRow; // flip for WebGL UV origin
-
-  if (atlasIdx !== currentAtlasIdx) {
-    vPlane.material.map = atlas.tex;
-    vPlane.material.needsUpdate = true;
-    currentAtlasIdx = atlasIdx;
-  }
-
-  vPlane.material.map.repeat.set(TILE_U, TILE_V);
-  vPlane.material.map.offset.set(col * TILE_U, uvRow * TILE_V);
-}
-
-/* ─────────────────────────────────────────────────────────────────────
-   THREE.JS
+   THREE.JS — alpha:true so WebGL canvas is transparent, bg shows through
 */
 const canvas   = document.getElementById('cv');
 const renderer = new THREE.WebGLRenderer({
-  canvas, antialias: !isMob, alpha: false, powerPreference: 'high-performance'
+  canvas, antialias: !isMob, alpha: true,
+  powerPreference: 'high-performance'
 });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
-renderer.setClearColor(0x020810, 1);
+renderer.setClearColor(0x000000, 0);
 
 const scene  = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(56, innerWidth / innerHeight, 0.1, 100);
@@ -313,121 +107,98 @@ camera.lookAt(0, 0, 0);
 const isMobile = () => innerWidth < 768;
 function getCardDims() { return isMobile() ? { W:2.6, H:1.58 } : { W:3.8, H:2.15 }; }
 
-const PLANE_Z = 1.5;
-const CAM_D   = camera.position.z - PLANE_Z;
-
-const _ph = document.createElement('canvas'); _ph.width = _ph.height = 2;
-const placeholderTex = new THREE.CanvasTexture(_ph);
-
-let vPlane;
-function rebuildVP() {
-  if (vPlane) { scene.remove(vPlane); vPlane.geometry.dispose(); }
-  const h = 2 * Math.tan((56 * Math.PI / 180) / 2) * CAM_D;
-  const w = h * (innerWidth / innerHeight) * (isMobile() ? 0.95 : 0.45);
-  vPlane = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
-    new THREE.MeshBasicMaterial({ map: placeholderTex, depthWrite: true, depthTest: true })
-  );
-  vPlane.position.z = PLANE_Z;
-  scene.add(vPlane);
-  currentAtlasIdx = -1;
-}
-rebuildVP();
-
 /* ─────────────────────────────────────────────────────────────────────
-   CARD SYSTEM — bg baked once, per-frame only 3 text ops
+   CARD SYSTEM
 */
 const CW = isMob ? 1024 : 1536;
 const CH = isMob ? 576  : 864;
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%<>/\\|?^~*-+=[]{}:.';
 
 const cardState = CARDS.map(() => ({
-  sp: 0, lastSp: -1, canvas: null, ctx: null, tex: null,
-  bgCanvas: null, bgCtx: null, layout: null
+  sp:0, lastSp:-1, canvas:null, ctx:null, tex:null,
+  bgCanvas:null, bgCtx:null, layout:null
 }));
 
 function initCard(i) {
   const s = cardState[i];
-  s.bgCanvas = document.createElement('canvas'); s.bgCanvas.width = CW; s.bgCanvas.height = CH;
+  s.bgCanvas = document.createElement('canvas'); s.bgCanvas.width=CW; s.bgCanvas.height=CH;
   s.bgCtx = s.bgCanvas.getContext('2d');
-  s.canvas = document.createElement('canvas'); s.canvas.width = CW; s.canvas.height = CH;
+  s.canvas = document.createElement('canvas'); s.canvas.width=CW; s.canvas.height=CH;
   s.ctx = s.canvas.getContext('2d');
   s.tex = new THREE.CanvasTexture(s.canvas);
   s.tex.minFilter = s.tex.magFilter = THREE.LinearFilter;
   s.tex.generateMipmaps = false;
 }
 
-function rrPath(c, x, y, w, h, r) {
+function rrPath(c,x,y,w,h,r){
   c.beginPath();
-  c.moveTo(x+r,y); c.lineTo(x+w-r,y); c.quadraticCurveTo(x+w,y,x+w,y+r);
-  c.lineTo(x+w,y+h-r); c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
-  c.lineTo(x+r,y+h); c.quadraticCurveTo(x,y+h,x,y+h-r);
-  c.lineTo(x,y+r); c.quadraticCurveTo(x,y,x+r,y);
+  c.moveTo(x+r,y);c.lineTo(x+w-r,y);c.quadraticCurveTo(x+w,y,x+w,y+r);
+  c.lineTo(x+w,y+h-r);c.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+  c.lineTo(x+r,y+h);c.quadraticCurveTo(x,y+h,x,y+h-r);
+  c.lineTo(x,y+r);c.quadraticCurveTo(x,y,x+r,y);
   c.closePath();
 }
 
-function bakeBg(idx) {
+function bakeBg(idx){
   const s=cardState[idx],c=s.bgCtx,mob=isMobile(),R=52;
   c.clearRect(0,0,CW,CH);
-  c.save(); rrPath(c,0,0,CW,CH,R); c.clip();
-  c.fillStyle='rgba(2,7,20,0.82)'; c.fillRect(0,0,CW,CH);
+  c.save();rrPath(c,0,0,CW,CH,R);c.clip();
+  c.fillStyle='rgba(2,7,20,0.82)';c.fillRect(0,0,CW,CH);
   const g1=c.createLinearGradient(0,0,CW,CH);
-  g1.addColorStop(0,'rgba(8,28,80,0.38)'); g1.addColorStop(0.4,'rgba(3,10,35,0.20)'); g1.addColorStop(1,'rgba(1,4,16,0.42)');
-  c.fillStyle=g1; c.fillRect(0,0,CW,CH);
+  g1.addColorStop(0,'rgba(8,28,80,0.38)');g1.addColorStop(0.4,'rgba(3,10,35,0.20)');g1.addColorStop(1,'rgba(1,4,16,0.42)');
+  c.fillStyle=g1;c.fillRect(0,0,CW,CH);
   const g2=c.createLinearGradient(0,0,CW*0.55,CH*0.40);
-  g2.addColorStop(0,'rgba(255,255,255,0.28)'); g2.addColorStop(0.12,'rgba(210,235,255,0.14)');
-  g2.addColorStop(0.35,'rgba(160,210,255,0.05)'); g2.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=g2; c.fillRect(0,0,CW,CH);
+  g2.addColorStop(0,'rgba(255,255,255,0.28)');g2.addColorStop(0.12,'rgba(210,235,255,0.14)');
+  g2.addColorStop(0.35,'rgba(160,210,255,0.05)');g2.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g2;c.fillRect(0,0,CW,CH);
   const tb=c.createLinearGradient(0,0,0,CH*0.07);
-  tb.addColorStop(0,'rgba(200,230,255,0.62)'); tb.addColorStop(1,'rgba(0,60,180,0)');
-  c.fillStyle=tb; c.fillRect(0,0,CW,CH*0.07);
-  const lb2=c.createLinearGradient(0,0,CW*0.032,0);
-  lb2.addColorStop(0,'rgba(180,220,255,0.35)'); lb2.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=lb2; c.fillRect(0,0,CW*0.032,CH);
+  tb.addColorStop(0,'rgba(200,230,255,0.62)');tb.addColorStop(1,'rgba(0,60,180,0)');
+  c.fillStyle=tb;c.fillRect(0,0,CW,CH*0.07);
+  const lb=c.createLinearGradient(0,0,CW*0.032,0);
+  lb.addColorStop(0,'rgba(180,220,255,0.35)');lb.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=lb;c.fillRect(0,0,CW*0.032,CH);
   const bs=c.createLinearGradient(0,CH*0.65,0,CH);
-  bs.addColorStop(0,'rgba(0,0,0,0)'); bs.addColorStop(1,'rgba(0,2,12,0.88)');
-  c.fillStyle=bs; c.fillRect(0,0,CW,CH);
+  bs.addColorStop(0,'rgba(0,0,0,0)');bs.addColorStop(1,'rgba(0,2,12,0.88)');
+  c.fillStyle=bs;c.fillRect(0,0,CW,CH);
   const rs=c.createLinearGradient(CW*0.78,0,CW,0);
-  rs.addColorStop(0,'rgba(0,0,0,0)'); rs.addColorStop(1,'rgba(0,2,12,0.70)');
-  c.fillStyle=rs; c.fillRect(0,0,CW,CH);
+  rs.addColorStop(0,'rgba(0,0,0,0)');rs.addColorStop(1,'rgba(0,2,12,0.70)');
+  c.fillStyle=rs;c.fillRect(0,0,CW,CH);
   const fr=c.createRadialGradient(CW*0.35,CH*0.30,0,CW*0.5,CH*0.5,CW*0.50);
-  fr.addColorStop(0,'rgba(60,120,255,0.07)'); fr.addColorStop(1,'rgba(0,0,0,0)');
-  c.fillStyle=fr; c.fillRect(0,0,CW,CH);
+  fr.addColorStop(0,'rgba(60,120,255,0.07)');fr.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=fr;c.fillRect(0,0,CW,CH);
   [[R,R],[CW-R,R],[CW-R,CH-R],[R,CH-R]].forEach(([cx,cy])=>{
     const cg=c.createRadialGradient(cx,cy,0,cx,cy,R*0.6);
-    cg.addColorStop(0,'rgba(210,240,255,0.22)'); cg.addColorStop(1,'rgba(0,0,0,0)');
-    c.fillStyle=cg; c.fillRect(0,0,CW,CH);
+    cg.addColorStop(0,'rgba(210,240,255,0.22)');cg.addColorStop(1,'rgba(0,0,0,0)');
+    c.fillStyle=cg;c.fillRect(0,0,CW,CH);
   });
-  const PX=mob?CW*0.080:CW*0.060, PY=mob?CH*0.115:CH*0.135;
-  const BOX_SZ=mob?CH*0.165:CH*0.20;
-  c.fillStyle='#1462FF'; c.beginPath(); c.roundRect(PX,PY,BOX_SZ,BOX_SZ,8); c.fill();
+  const PX=mob?CW*0.080:CW*0.060,PY=mob?CH*0.115:CH*0.135,BOX_SZ=mob?CH*0.165:CH*0.20;
+  c.fillStyle='#1462FF';c.beginPath();c.roundRect(PX,PY,BOX_SZ,BOX_SZ,8);c.fill();
   const bhl=c.createLinearGradient(PX,PY,PX,PY+BOX_SZ*0.55);
-  bhl.addColorStop(0,'rgba(255,255,255,0.22)'); bhl.addColorStop(1,'rgba(255,255,255,0)');
-  c.fillStyle=bhl; c.beginPath(); c.roundRect(PX,PY,BOX_SZ,BOX_SZ,8); c.fill();
+  bhl.addColorStop(0,'rgba(255,255,255,0.22)');bhl.addColorStop(1,'rgba(255,255,255,0)');
+  c.fillStyle=bhl;c.beginPath();c.roundRect(PX,PY,BOX_SZ,BOX_SZ,8);c.fill();
   c.restore();
-  c.save(); rrPath(c,2,2,CW-4,CH-4,R-2);
-  c.shadowColor='rgba(80,180,255,0.70)'; c.shadowBlur=44;
+  c.save();rrPath(c,2,2,CW-4,CH-4,R-2);
+  c.shadowColor='rgba(80,180,255,0.70)';c.shadowBlur=44;
   const bg3=c.createLinearGradient(0,0,CW,CH);
-  bg3.addColorStop(0,'rgba(230,245,255,0.95)'); bg3.addColorStop(0.15,'rgba(130,195,255,0.78)');
-  bg3.addColorStop(0.45,'rgba(50,110,220,0.28)'); bg3.addColorStop(0.75,'rgba(90,150,245,0.50)');
+  bg3.addColorStop(0,'rgba(230,245,255,0.95)');bg3.addColorStop(0.15,'rgba(130,195,255,0.78)');
+  bg3.addColorStop(0.45,'rgba(50,110,220,0.28)');bg3.addColorStop(0.75,'rgba(90,150,245,0.50)');
   bg3.addColorStop(1,'rgba(210,235,255,0.85)');
-  c.strokeStyle=bg3; c.lineWidth=3; c.stroke(); c.shadowBlur=0; c.restore();
-  c.save(); rrPath(c,7,7,CW-14,CH-14,R-7);
-  c.strokeStyle='rgba(255,255,255,0.07)'; c.lineWidth=1; c.stroke(); c.restore();
+  c.strokeStyle=bg3;c.lineWidth=3;c.stroke();c.shadowBlur=0;c.restore();
+  c.save();rrPath(c,7,7,CW-14,CH-14,R-7);
+  c.strokeStyle='rgba(255,255,255,0.07)';c.lineWidth=1;c.stroke();c.restore();
 }
 
-function computeLayout(idx) {
+function computeLayout(idx){
   const s=cardState[idx],card=CARDS[idx],mob=isMobile(),c=s.ctx;
-  const PX=mob?CW*0.080:CW*0.060, PY=mob?CH*0.115:CH*0.135;
-  const IW=CW-PX*2, BOX_SZ=mob?CH*0.165:CH*0.20;
-  const BOX_X=PX, BOX_Y=PY, numFs=BOX_SZ*0.48;
-  const TITLE_X=BOX_X+BOX_SZ+CW*(mob?0.025:0.030), TITLE_MAX=CW-TITLE_X-PX;
-  let tFs=mob?CH*0.110:CH*0.148, TMIN=mob?CH*0.055:CH*0.065;
+  const PX=mob?CW*0.080:CW*0.060,PY=mob?CH*0.115:CH*0.135;
+  const IW=CW-PX*2,BOX_SZ=mob?CH*0.165:CH*0.20,BOX_X=PX,BOX_Y=PY,numFs=BOX_SZ*0.48;
+  const TITLE_X=BOX_X+BOX_SZ+CW*(mob?0.025:0.030),TITLE_MAX=CW-TITLE_X-PX;
+  let tFs=mob?CH*0.110:CH*0.148,TMIN=mob?CH*0.055:CH*0.065;
   c.font=`800 ${tFs}px "Syne",sans-serif`;
   while(c.measureText(card.title).width>TITLE_MAX&&tFs>TMIN){tFs-=2;c.font=`800 ${tFs}px "Syne",sans-serif`;}
   const SUB_Y_TOP=BOX_Y+BOX_SZ+(mob?CH*0.055:CH*0.072);
   const SUB_AVAIL=CH-SUB_Y_TOP-(mob?CH*0.075:CH*0.09);
-  let sFs=mob?CH*0.056:CH*0.052, SMIN=mob?CH*0.030:CH*0.026, rawLines;
+  let sFs=mob?CH*0.056:CH*0.052,SMIN=mob?CH*0.030:CH*0.026,rawLines;
   for(;;){
     c.font=mob?`400 ${sFs}px "Syne",sans-serif`:`300 ${sFs}px "Syne",sans-serif`;
     rawLines=wrapLines(c,card.sub,IW*0.93);
@@ -456,7 +227,7 @@ function drawCard(idx,sp){
   s.lastSp=sp;
   if(!s.layout)computeLayout(idx);
   const L=s.layout,c=s.ctx,card=CARDS[idx];
-  c.clearRect(0,0,CW,CH); c.drawImage(s.bgCanvas,0,0);
+  c.clearRect(0,0,CW,CH);c.drawImage(s.bgCanvas,0,0);
   c.font=`700 ${L.numFs}px "Space Mono",monospace`;
   c.textAlign='center';c.textBaseline='middle';c.fillStyle='#ffffff';
   c.fillText(scramble(card.num,sp),L.BOX_X+L.BOX_SZ/2,L.BOX_Y+L.BOX_SZ/2+L.numFs*0.04);
@@ -506,42 +277,32 @@ const fL=new THREE.DirectionalLight(0x00ccff,1.1);fL.position.set(2,3,10);scene.
 const bL=new THREE.PointLight(0x0044ff,1.6,22);bL.position.set(-3,1,-8);scene.add(bL);
 
 /* ─────────────────────────────────────────────────────────────────────
-   LENIS — runs on ALL devices.
-   During extraction: duration is HIGH (scroll feels heavy/slow).
-   As frames load: duration eases down toward LENIS_FAST (1.2).
-   After overlay dismissed: snaps to LENIS_FAST immediately.
-   This prevents the user from scrolling faster than frames are ready
-   while still feeling like smooth, natural inertia scroll.
+   LENIS
 */
 gsap.registerPlugin(ScrollTrigger);
-
-const LENIS_SLOW = 4.0;   // used during load on mobile only
-const LENIS_FAST = 0.8;   // fast snappy inertia once loaded
-
-const lenis = new Lenis({
-  duration: isMob ? LENIS_SLOW : LENIS_FAST,
-  easing: t => 1 - Math.pow(1 - t, 3), // cubic ease-out — fast start, quick settle
-  smoothWheel: true,
+const lenis=new Lenis({
+  duration:0.8,
+  easing:t=>1-Math.pow(1-t,3),
+  smoothWheel:true,
 });
-
-lenis.on('scroll', ScrollTrigger.update);
-gsap.ticker.add(t => lenis.raf(t * 1000));
+lenis.on('scroll',ScrollTrigger.update);
+gsap.ticker.add(t=>lenis.raf(t*1000));
 gsap.ticker.lagSmoothing(0);
 
-let targetP = 0;
-
+let targetP=0;
 ScrollTrigger.create({
-  trigger:'#wrap', start:'top top', end:'bottom bottom', scrub: 0.5,
-  onUpdate: self => {
-    targetP = self.progress;
-    document.getElementById('bar').style.width = (targetP * 100) + '%';
-    document.getElementById('hint').style.opacity = targetP > 0.03 ? '0' : '1';
-    cardObjs.forEach(({pivot,mat,baseY:by,idx}) => {
-      const y=by+targetP*TOTAL_RISE, angle=-y*ANGLE_FACTOR;
+  trigger:'#wrap',start:'top top',end:'bottom bottom',scrub:0.5,
+  onUpdate:self=>{
+    targetP=self.progress;
+    document.getElementById('bar').style.width=(targetP*100)+'%';
+    document.getElementById('hint').style.opacity=targetP>0.03?'0':'1';
+    updateParallax(targetP);
+    cardObjs.forEach(({pivot,mat,baseY:by,idx})=>{
+      const y=by+targetP*TOTAL_RISE,angle=-y*ANGLE_FACTOR;
       pivot.position.set(Math.sin(angle)*SPIRAL_RADIUS,y,Math.cos(angle)*SPIRAL_RADIUS);
-      pivot.rotation.y=angle; pivot.rotation.x=Math.sin(y*0.5)*0.1;
+      pivot.rotation.y=angle;pivot.rotation.x=Math.sin(y*0.5)*0.1;
       const op=Math.pow(Math.max(0,1-Math.abs(y)/FADE_RANGE),2.5);
-      mat.opacity=op*0.94; pivot.scale.setScalar(1+op*0.06); pivot.visible=op>0.01;
+      mat.opacity=op*0.94;pivot.scale.setScalar(1+op*0.06);pivot.visible=op>0.01;
       const s=cardState[idx];
       if(op>0.04)s.sp=Math.min(1,s.sp+0.022);
       else s.sp=Math.max(0,s.sp-0.06);
@@ -552,25 +313,17 @@ ScrollTrigger.create({
 /* ─────────────────────────────────────────────────────────────────────
    RENDER LOOP
 */
-let tk=0, fc=0, lastFrameIdx=-1;
-
+let tk=0,fc=0;
 (function loop(){
   requestAnimationFrame(loop);
-  tk+=0.005; fc++;
-
-  if(overlayDismissed && totalFrames>0){
-    const idx=Math.round(targetP*(totalFrames-1));
-    if(idx!==lastFrameIdx){ lastFrameIdx=idx; paintFrameForProgress(targetP); }
-  }
-
+  tk+=0.005;fc++;
   if(fc%2===0){
     cardObjs.forEach(({mat,idx,pivot})=>{
       if(!pivot.visible)return;
       const s=cardState[idx];
-      if(s.sp>0.001){ drawCard(idx,s.sp); s.tex.needsUpdate=true; mat.map=s.tex; }
+      if(s.sp>0.001){drawCard(idx,s.sp);s.tex.needsUpdate=true;mat.map=s.tex;}
     });
   }
-
   camera.position.y=0.5+Math.sin(tk*0.2)*0.1;
   camera.lookAt(0,0,0);
   renderer.render(scene,camera);
@@ -580,7 +333,6 @@ window.addEventListener('resize',()=>{
   renderer.setSize(innerWidth,innerHeight);
   camera.aspect=innerWidth/innerHeight;
   camera.updateProjectionMatrix();
-  rebuildVP();
   const{W,H}=getCardDims();
   cardObjs.forEach(({face,idx})=>{
     face.geometry.dispose();
@@ -591,7 +343,7 @@ window.addEventListener('resize',()=>{
 });
 
 document.fonts.ready.then(()=>{
-  CARDS.forEach((_,i)=>{ bakeBg(i); computeLayout(i); drawCard(i,0); });
+  CARDS.forEach((_,i)=>{bakeBg(i);computeLayout(i);drawCard(i,0);});
 });
 </script>
 </body>
