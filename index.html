@@ -39,7 +39,7 @@ const CARDS = [
   { num:'04', title:'Sovereign Intelligence', sub:'Nations building their own AI stacks will define geopolitics, economic power and cultural identity for a century.' },
 ];
 
-/* ═══ VIDEO — onseeked scrub ═══ */
+/* ═══ VIDEO ═══ */
 const vid = document.getElementById('bg-video');
 const vidBuf = document.createElement('canvas');
 vidBuf.width = 1280; vidBuf.height = 720;
@@ -105,10 +105,9 @@ camera.lookAt(0, 0, 0);
 
 const isMobile = () => innerWidth < 768;
 
-/* card physical dims — 25% smaller than before, extra small on mobile */
 function getCardDims() {
-  if (isMobile()) return { W: 2.8, H: 2.0 };   /* mobile: compact */
-  return { W: 4.5, H: 2.55 };                    /* desktop: 25% smaller than prev 6×3.4 */
+  if (isMobile()) return { W: 2.8, H: 1.70 }; /* 15% shorter than prev 2.0 */
+  return { W: 4.5, H: 2.55 };
 }
 
 window.addEventListener('resize', () => {
@@ -123,7 +122,6 @@ window.addEventListener('resize', () => {
   });
 });
 
-/* video plane */
 const PLANE_Z = 1.5;
 const CAM_D   = camera.position.z - PLANE_Z;
 const vidTex  = new THREE.CanvasTexture(vidBuf);
@@ -143,8 +141,7 @@ function rebuildVP() {
 }
 rebuildVP();
 
-/* ─── CARD CANVAS — high-res offscreen ─── */
-/* We render at high res so text is sharp when card is small in 3D */
+/* ─── CARD CANVAS ─── */
 const CW = 1536, CH = 864;
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%<>/\\|?^~*-+=[]{}:.';
 const cardState = CARDS.map(() => ({ sp: 0, canvas: null, ctx: null, tex: null }));
@@ -189,27 +186,24 @@ function wrapLines(c, text, maxW) {
 function drawCard(idx, sp) {
   const { ctx: c } = cardState[idx];
   const card = CARDS[idx];
+  const mob = isMobile();
   const R = 52;
 
   c.clearRect(0,0,CW,CH);
 
-  /* ── GLASS BASE — darker tint ── */
+  /* ── GLASS BASE ── */
   rrPath(c, 0, 0, CW, CH, R);
   c.clip();
 
-  /* very dark near-opaque base — feels like dark tinted glass */
   c.fillStyle = 'rgba(2, 7, 20, 0.82)';
   c.fillRect(0, 0, CW, CH);
 
-  /* deep navy tint overlay */
   const glassFill = c.createLinearGradient(0, 0, CW, CH);
   glassFill.addColorStop(0,   'rgba(8, 28, 80, 0.38)');
   glassFill.addColorStop(0.4, 'rgba(3, 10, 35, 0.20)');
   glassFill.addColorStop(1,   'rgba(1, 4, 16, 0.42)');
   c.fillStyle = glassFill; c.fillRect(0, 0, CW, CH);
 
-  /* ── GLASSY FEEL: keep specular + edge highlights bright ── */
-  /* diagonal specular streak — bright to sell the glass illusion */
   const specGrad = c.createLinearGradient(0, 0, CW*0.55, CH*0.40);
   specGrad.addColorStop(0,    'rgba(255,255,255,0.28)');
   specGrad.addColorStop(0.12, 'rgba(210,235,255,0.14)');
@@ -217,37 +211,31 @@ function drawCard(idx, sp) {
   specGrad.addColorStop(1,    'rgba(0,0,0,0)');
   c.fillStyle = specGrad; c.fillRect(0, 0, CW, CH);
 
-  /* top bevel — bright white edge catching light */
   const topBevel = c.createLinearGradient(0, 0, 0, CH*0.07);
   topBevel.addColorStop(0, 'rgba(200,230,255,0.62)');
   topBevel.addColorStop(1, 'rgba(0,60,180,0)');
   c.fillStyle = topBevel; c.fillRect(0, 0, CW, CH*0.07);
 
-  /* left bevel */
   const leftBevel = c.createLinearGradient(0, 0, CW*0.032, 0);
   leftBevel.addColorStop(0, 'rgba(180,220,255,0.35)');
   leftBevel.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = leftBevel; c.fillRect(0, 0, CW*0.032, CH);
 
-  /* bottom depth shadow — extra dark for thick-glass feel */
   const botShadow = c.createLinearGradient(0, CH*0.65, 0, CH);
   botShadow.addColorStop(0, 'rgba(0,0,0,0)');
   botShadow.addColorStop(1, 'rgba(0,2,12,0.88)');
   c.fillStyle = botShadow; c.fillRect(0, 0, CW, CH);
 
-  /* right shadow */
   const rigShadow = c.createLinearGradient(CW*0.78, 0, CW, 0);
   rigShadow.addColorStop(0, 'rgba(0,0,0,0)');
   rigShadow.addColorStop(1, 'rgba(0,2,12,0.70)');
   c.fillStyle = rigShadow; c.fillRect(0, 0, CW, CH);
 
-  /* inner frosted core glow — subtle so dark base dominates */
   const frosted = c.createRadialGradient(CW*0.35,CH*0.30,0,CW*0.5,CH*0.5,CW*0.50);
   frosted.addColorStop(0, 'rgba(60,120,255,0.07)');
   frosted.addColorStop(1, 'rgba(0,0,0,0)');
   c.fillStyle = frosted; c.fillRect(0, 0, CW, CH);
 
-  /* ── OUTER BORDER: bright refractive gradient stroke ── */
   c.save();
   rrPath(c, 2, 2, CW-4, CH-4, R-2);
   c.shadowColor = 'rgba(80,180,255,0.70)'; c.shadowBlur = 44;
@@ -260,57 +248,58 @@ function drawCard(idx, sp) {
   c.strokeStyle = borderGrad; c.lineWidth = 3; c.stroke();
   c.shadowBlur = 0; c.restore();
 
-  /* inner hairline */
   c.save();
   rrPath(c, 7, 7, CW-14, CH-14, R-7);
   c.strokeStyle = 'rgba(255,255,255,0.07)'; c.lineWidth = 1; c.stroke();
   c.restore();
 
-  /* corner glints */
   [[R,R],[CW-R,R],[CW-R,CH-R],[R,CH-R]].forEach(([cx,cy]) => {
     const g2 = c.createRadialGradient(cx,cy,0,cx,cy,R*0.6);
     g2.addColorStop(0,'rgba(210,240,255,0.22)'); g2.addColorStop(1,'rgba(0,0,0,0)');
     c.fillStyle=g2; c.fillRect(0,0,CW,CH);
   });
 
-  /* ══════════════════════════════════════
-     CONTENT LAYOUT
-     [BLUE BADGE]  [TITLE]
-     [SUBTITLE — full width below]
-  ══════════════════════════════════════ */
-  const PX  = CW * 0.060;
-  const PY  = CH * 0.135;
-  const IW  = CW - PX * 2;
+  /* ══ CONTENT LAYOUT ══
+     Mobile tweaks:
+       - more PX padding so content doesn't crowd edges
+       - smaller badge so number fits comfortably
+       - smaller title font so it sits neatly beside badge
+       - tighter vertical spacing to match reduced card height
+  */
+  const PX      = mob ? CW * 0.080 : CW * 0.060;   /* more side padding on mobile */
+  const PY      = mob ? CH * 0.115 : CH * 0.135;   /* tighter top on mobile */
+  const IW      = CW - PX * 2;
 
-  /* ── Blue badge ── */
-  const BOX_SZ = CH * 0.20;   /* square badge */
-  const BOX_X  = PX;
-  const BOX_Y  = PY;
+  /* badge — smaller on mobile so number has breathing room */
+  const BOX_SZ  = mob ? CH * 0.165 : CH * 0.20;
+  const BOX_X   = PX;
+  const BOX_Y   = PY;
 
   c.fillStyle = '#1462FF';
-  c.beginPath(); c.roundRect(BOX_X, BOX_Y, BOX_SZ, BOX_SZ, 9); c.fill();
+  c.beginPath(); c.roundRect(BOX_X, BOX_Y, BOX_SZ, BOX_SZ, 8); c.fill();
 
-  /* badge inner highlight */
   const badgeHL = c.createLinearGradient(BOX_X, BOX_Y, BOX_X, BOX_Y + BOX_SZ*0.55);
   badgeHL.addColorStop(0,'rgba(255,255,255,0.22)'); badgeHL.addColorStop(1,'rgba(255,255,255,0)');
   c.fillStyle = badgeHL;
-  c.beginPath(); c.roundRect(BOX_X, BOX_Y, BOX_SZ, BOX_SZ, 9); c.fill();
+  c.beginPath(); c.roundRect(BOX_X, BOX_Y, BOX_SZ, BOX_SZ, 8); c.fill();
 
-  /* number */
-  const numFs = BOX_SZ * 0.50;
+  /* number text — scaled to badge */
+  const numFs = BOX_SZ * 0.48;
   c.font = `700 ${numFs}px "Space Mono",monospace`;
   c.textAlign = 'center'; c.textBaseline = 'middle';
   c.fillStyle = '#ffffff';
   c.fillText(scramble(card.num, sp), BOX_X + BOX_SZ/2, BOX_Y + BOX_SZ/2 + numFs*0.04);
   c.textBaseline = 'alphabetic';
 
-  /* ── Title — right of badge ── */
-  const TITLE_X   = BOX_X + BOX_SZ + CW*0.030;
-  const TITLE_MAX = CW - TITLE_X - PX;
+  /* title — noticeably smaller on mobile */
+  const TITLE_X    = BOX_X + BOX_SZ + CW * (mob ? 0.025 : 0.030);
+  const TITLE_MAX  = CW - TITLE_X - PX;
+  const TITLE_START = mob ? CH * 0.110 : CH * 0.148; /* smaller start size on mobile */
+  const TITLE_MIN   = mob ? CH * 0.055 : CH * 0.065;
 
-  let tFs = CH * 0.148;
+  let tFs = TITLE_START;
   c.font = `800 ${tFs}px "Syne",sans-serif`;
-  while (c.measureText(card.title).width > TITLE_MAX && tFs > CH*0.065) {
+  while (c.measureText(card.title).width > TITLE_MAX && tFs > TITLE_MIN) {
     tFs -= 2; c.font = `800 ${tFs}px "Syne",sans-serif`;
   }
   c.textAlign = 'left'; c.textBaseline = 'middle';
@@ -319,22 +308,26 @@ function drawCard(idx, sp) {
   c.fillText(scramble(card.title, sp), TITLE_X, BOX_Y + BOX_SZ/2 + tFs*0.04);
   c.shadowBlur = 0; c.textBaseline = 'alphabetic';
 
-  /* ── Subtitle ── */
-  const SUB_Y_TOP = BOX_Y + BOX_SZ + CH*0.072;
-  const SUB_AVAIL = CH - SUB_Y_TOP - CH*0.09;
+  /* subtitle — tighter gap on mobile to fit the shorter card */
+  const SUB_GAP    = mob ? CH * 0.055 : CH * 0.072;
+  const SUB_Y_TOP  = BOX_Y + BOX_SZ + SUB_GAP;
+  const SUB_BOTTOM = mob ? CH * 0.075 : CH * 0.09;
+  const SUB_AVAIL  = CH - SUB_Y_TOP - SUB_BOTTOM;
+  const SUB_START  = mob ? CH * 0.044 : CH * 0.052;
+  const SUB_MIN    = mob ? CH * 0.022 : CH * 0.026;
 
-  let sFs = CH * 0.052;
+  let sFs = SUB_START;
   let sLines;
   for(;;){
     c.font = `400 ${sFs}px "Syne",sans-serif`;
-    sLines = wrapLines(c, card.sub, IW*0.93);
-    if(sFs <= CH*0.026 || sLines.length*sFs*1.58 <= SUB_AVAIL) break;
+    sLines = wrapLines(c, card.sub, IW * 0.93);
+    if(sFs <= SUB_MIN || sLines.length * sFs * 1.58 <= SUB_AVAIL) break;
     sFs -= 1.5;
   }
   c.font = `400 ${sFs}px "Syne",sans-serif`;
   c.fillStyle = 'rgba(195,225,255,0.80)';
   c.textAlign = 'left';
-  const lh = sFs*1.58;
+  const lh = sFs * 1.58;
   sLines.forEach((l,i) => c.fillText(l, PX, SUB_Y_TOP + sFs + i*lh));
 }
 
@@ -408,7 +401,6 @@ ScrollTrigger.create({
   }
 });
 
-/* ─── RENDER LOOP ─── */
 let tk=0,fc=0;
 (function loop(){
   requestAnimationFrame(loop);
