@@ -106,8 +106,8 @@ camera.lookAt(0, 0, 0);
 const isMobile = () => innerWidth < 768;
 
 function getCardDims() {
-  if (isMobile()) return { W: 2.8, H: 1.70 }; /* 15% shorter than prev 2.0 */
-  return { W: 4.5, H: 2.55 };
+  if (isMobile()) return { W: 2.6, H: 1.58 };
+  return { W: 3.8, H: 2.15 }; /* reduced from 4.5 × 2.55 */
 }
 
 window.addEventListener('resize', () => {
@@ -191,7 +191,6 @@ function drawCard(idx, sp) {
 
   c.clearRect(0,0,CW,CH);
 
-  /* ── GLASS BASE ── */
   rrPath(c, 0, 0, CW, CH, R);
   c.clip();
 
@@ -259,18 +258,10 @@ function drawCard(idx, sp) {
     c.fillStyle=g2; c.fillRect(0,0,CW,CH);
   });
 
-  /* ══ CONTENT LAYOUT ══
-     Mobile tweaks:
-       - more PX padding so content doesn't crowd edges
-       - smaller badge so number fits comfortably
-       - smaller title font so it sits neatly beside badge
-       - tighter vertical spacing to match reduced card height
-  */
-  const PX      = mob ? CW * 0.080 : CW * 0.060;   /* more side padding on mobile */
-  const PY      = mob ? CH * 0.115 : CH * 0.135;   /* tighter top on mobile */
+  const PX      = mob ? CW * 0.080 : CW * 0.060;
+  const PY      = mob ? CH * 0.115 : CH * 0.135;
   const IW      = CW - PX * 2;
 
-  /* badge — smaller on mobile so number has breathing room */
   const BOX_SZ  = mob ? CH * 0.165 : CH * 0.20;
   const BOX_X   = PX;
   const BOX_Y   = PY;
@@ -283,7 +274,6 @@ function drawCard(idx, sp) {
   c.fillStyle = badgeHL;
   c.beginPath(); c.roundRect(BOX_X, BOX_Y, BOX_SZ, BOX_SZ, 8); c.fill();
 
-  /* number text — scaled to badge */
   const numFs = BOX_SZ * 0.48;
   c.font = `700 ${numFs}px "Space Mono",monospace`;
   c.textAlign = 'center'; c.textBaseline = 'middle';
@@ -291,10 +281,9 @@ function drawCard(idx, sp) {
   c.fillText(scramble(card.num, sp), BOX_X + BOX_SZ/2, BOX_Y + BOX_SZ/2 + numFs*0.04);
   c.textBaseline = 'alphabetic';
 
-  /* title — noticeably smaller on mobile */
   const TITLE_X    = BOX_X + BOX_SZ + CW * (mob ? 0.025 : 0.030);
   const TITLE_MAX  = CW - TITLE_X - PX;
-  const TITLE_START = mob ? CH * 0.110 : CH * 0.148; /* smaller start size on mobile */
+  const TITLE_START = mob ? CH * 0.110 : CH * 0.148;
   const TITLE_MIN   = mob ? CH * 0.055 : CH * 0.065;
 
   let tFs = TITLE_START;
@@ -308,27 +297,30 @@ function drawCard(idx, sp) {
   c.fillText(scramble(card.title, sp), TITLE_X, BOX_Y + BOX_SZ/2 + tFs*0.04);
   c.shadowBlur = 0; c.textBaseline = 'alphabetic';
 
-  /* subtitle — tighter gap on mobile to fit the shorter card */
   const SUB_GAP    = mob ? CH * 0.055 : CH * 0.072;
   const SUB_Y_TOP  = BOX_Y + BOX_SZ + SUB_GAP;
   const SUB_BOTTOM = mob ? CH * 0.075 : CH * 0.09;
   const SUB_AVAIL  = CH - SUB_Y_TOP - SUB_BOTTOM;
-  const SUB_START  = mob ? CH * 0.044 : CH * 0.052;
-  const SUB_MIN    = mob ? CH * 0.022 : CH * 0.026;
+  const SUB_START  = mob ? CH * 0.056 : CH * 0.052; /* mobile bumped up from 0.044 */
+  const SUB_MIN    = mob ? CH * 0.030 : CH * 0.026;
 
   let sFs = SUB_START;
   let sLines;
   for(;;){
-    c.font = `400 ${sFs}px "Syne",sans-serif`;
+    c.font = mob
+      ? `400 ${sFs}px "Syne",sans-serif`
+      : `300 ${sFs}px "Syne",sans-serif`; /* desktop weight: 300 (light) */
     sLines = wrapLines(c, card.sub, IW * 0.93);
     if(sFs <= SUB_MIN || sLines.length * sFs * 1.58 <= SUB_AVAIL) break;
     sFs -= 1.5;
   }
-  c.font = `400 ${sFs}px "Syne",sans-serif`;
+  c.font = mob
+    ? `400 ${sFs}px "Syne",sans-serif`
+    : `300 ${sFs}px "Syne",sans-serif`;
   c.fillStyle = 'rgba(195,225,255,0.80)';
-  c.textAlign = 'left';
+  c.textAlign = 'center';
   const lh = sFs * 1.58;
-  sLines.forEach((l,i) => c.fillText(l, PX, SUB_Y_TOP + sFs + i*lh));
+ sLines.forEach((l,i) => c.fillText(l, CW / 2, SUB_Y_TOP + sFs + i*lh));
 }
 
 /* ─── SPIRAL ─── */
@@ -336,8 +328,11 @@ const CARD_SPACING  = 1.8;
 const SPIRAL_RADIUS = 5.0;
 const ANGLE_FACTOR  = 0.7;
 const FADE_RANGE    = 1.5;
-const TOTAL_RISE    = (CARDS.length-1)*CARD_SPACING;
-const baseYArr      = CARDS.map((_,i)=>-i*CARD_SPACING);
+
+/* Delay first card appearance */
+const INITIAL_OFFSET = CARD_SPACING * 0.8;
+const TOTAL_RISE     = (CARDS.length - 1) * CARD_SPACING + INITIAL_OFFSET + CARD_SPACING;
+const baseYArr       = CARDS.map((_,i) => -i * CARD_SPACING - INITIAL_OFFSET);
 
 const helixGroup = new THREE.Group(); scene.add(helixGroup);
 const cardObjs   = [];
