@@ -22,6 +22,15 @@
       will-change:transform;
       transition:filter 2s ease;
     }
+    #bg-overlay{
+      position:fixed;inset:0;z-index:0;
+      background:linear-gradient(
+        to bottom,
+        rgba(2,8,16,0.55) 0%,
+        rgba(2,8,16,0.30) 40%,
+        rgba(2,8,16,0.70) 100%
+      );
+    }
 
     #cv{position:fixed;inset:0;z-index:1;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
@@ -50,6 +59,7 @@
 <body>
 
 <div id="bg-img"></div>
+<div id="bg-overlay"></div>
 <canvas id="cv"></canvas>
 <div id="bar"></div>
 <div id="wrap"><div id="view"><div id="hint">scroll to ascend</div></div></div>
@@ -66,10 +76,10 @@ const CARDS = [
 const isMob = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 const bgImg = document.getElementById('bg-img');
-let ambientT   = 0;
-let targetP    = 0;
+let ambientT    = 0;
+let targetP     = 0;
 
-let isScrolling    = false;
+let isScrolling     = false;
 let scrollStopTimer = null;
 let scrollVelocity  = 0;
 let lastScrollP     = 0;
@@ -91,6 +101,7 @@ function updateParallax(p) {
     scrollStopTimer = setTimeout(() => { isScrolling = false; }, 150);
   }
 
+  /* Scale — locked on mobile, gentle breath on desktop */
   if (!isMob) {
     const scaleTarget = isScrolling ? 1.36 : 1.22;
     currentScale += (scaleTarget - currentScale) * 0.025;
@@ -98,23 +109,27 @@ function updateParallax(p) {
     currentScale = 1.28;
   }
 
-  const driftX = Math.sin(ambientT * 0.5)  * 7;
-  const driftY = Math.sin(ambientT * 0.35) * 9;
-  const driftR = Math.sin(ambientT * 0.25) * 2.0;
+  /* Ambient drift — no rotation at all, just gentle xy sway */
+  const driftX = Math.sin(ambientT * 0.5)  * 5;
+  const driftY = Math.sin(ambientT * 0.35) * 6;
 
-  const scrollY = p * -60;
-  const scrollR = p * 12;
+  /* Breathing rotation — extremely subtle, just 0.25deg max */
+  const breathR = Math.sin(ambientT * 0.25) * 0.25;
+
+  /* Scroll-driven vertical parallax only, near-zero rotation */
+  const scrollY = p * -50;
+  const scrollR = p * 0.8;   /* was 12 — now barely perceptible */
 
   smoothMouseX += (mouseNX - smoothMouseX) * 0.04;
   smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
-  const mouseOffX = smoothMouseX * 4;
-  const mouseOffR = smoothMouseX * 0.8;
+  const mouseOffX = smoothMouseX * 3;
+  const mouseOffR = smoothMouseX * 0.15; /* was 0.8 */
 
   bgImg.style.transform =
     `scale(${currentScale.toFixed(4)})` +
     ` translateX(${(driftX + mouseOffX).toFixed(2)}px)` +
     ` translateY(${(scrollY + driftY).toFixed(2)}px)` +
-    ` rotate(${(scrollR + driftR + mouseOffR).toFixed(3)}deg)`;
+    ` rotate(${(scrollR + breathR + mouseOffR).toFixed(3)}deg)`;
 
   const bright = isScrolling ? 1.06 : 1.0;
   bgImg.style.filter = `brightness(${bright}) saturate(${isScrolling ? 1.08 : 1.0})`;
@@ -126,6 +141,7 @@ function updateParallax(p) {
   requestAnimationFrame(ambientLoop);
 })();
 
+/* ── THREE.JS ── */
 const canvas   = document.getElementById('cv');
 const renderer = new THREE.WebGLRenderer({
   canvas, antialias: !isMob, alpha: true,
@@ -147,8 +163,9 @@ const CW = isMob ? 1024 : 1536;
 const CH = isMob ? 576  : 864;
 const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%<>/\\|?^~*-+=[]{}:.';
 
-const cardState = CARDS.map(() => ({
-  sp:0, lastSp:-1, canvas:null, ctx:null, tex:null,
+const cardState = CARDS.map((_, i) => ({
+  sp: i === 0 ? 1 : 0,  /* card 01 starts fully revealed */
+  lastSp:-1, canvas:null, ctx:null, tex:null,
   bgCanvas:null, bgCtx:null, layout:null
 }));
 
@@ -276,7 +293,9 @@ function drawCard(idx,sp){
   L.lineRanges.forEach(([s2,e],i)=>c.fillText(sc.slice(s2,e),L.PX,L.SUB_Y_TOP+L.sFs+i*L.lh));
 }
 
-const CARD_SPACING=1.8,SPIRAL_RADIUS=5.0,ANGLE_FACTOR=0.7,FADE_RANGE=4.0;
+/* ── SPIRAL — tighter spacing ── */
+const CARD_SPACING=1.4;  /* was 1.8 */
+const SPIRAL_RADIUS=5.0,ANGLE_FACTOR=0.7,FADE_RANGE=4.0;
 const INITIAL_OFFSET=0;
 const TOTAL_RISE=(CARDS.length-1)*CARD_SPACING+INITIAL_OFFSET+CARD_SPACING;
 const baseYArr=CARDS.map((_,i)=>-i*CARD_SPACING-INITIAL_OFFSET);
@@ -287,7 +306,11 @@ CARDS.forEach((_,i)=>{
   initCard(i);
   const{W,H}=getCardDims();
   const pivot=new THREE.Group();
-  const mat=new THREE.MeshBasicMaterial({map:cardState[i].tex,transparent:true,opacity:0,side:THREE.DoubleSide,depthWrite:false,depthTest:true});
+  const mat=new THREE.MeshBasicMaterial({
+    map:cardState[i].tex,transparent:true,
+    opacity: i === 0 ? 0.94 : 0,  /* card 01 starts fully opaque */
+    side:THREE.DoubleSide,depthWrite:false,depthTest:true
+  });
   const face=new THREE.Mesh(new THREE.PlaneGeometry(W,H),mat);
   face.renderOrder=1;pivot.add(face);helixGroup.add(pivot);
   cardObjs.push({pivot,mat,baseY:baseYArr[i],idx:i,face});
@@ -341,8 +364,8 @@ let tk=0,fc=0;
   requestAnimationFrame(loop);
   tk+=0.005;fc++;
 
-  const tiltX =  smoothMouseY * 0.06;
-  const tiltY =  smoothMouseX * 0.04;
+  const tiltX = smoothMouseY * 0.06;
+  const tiltY = smoothMouseX * 0.04;
 
   if(fc%2===0){
     cardObjs.forEach(({mat,idx,pivot})=>{
