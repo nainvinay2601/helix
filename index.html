@@ -22,15 +22,26 @@
       transition:filter 2s ease;
     }
     #bg-overlay{
-      position:fixed;inset:0;z-index:0;
+      position:fixed;inset:0;z-index:1;
       background:linear-gradient(
         to bottom,
         rgba(2,8,16,0.55) 0%,
         rgba(2,8,16,0.30) 40%,
         rgba(2,8,16,0.70) 100%
       );
+      pointer-events:none;
     }
-    #cv{position:fixed;inset:0;z-index:1;pointer-events:none;display:block;}
+    @media (max-width: 768px) {
+      #bg-overlay{
+        background:linear-gradient(
+          to bottom,
+          rgba(2,8,16,0.72) 0%,
+          rgba(2,8,16,0.52) 40%,
+          rgba(2,8,16,0.85) 100%
+        );
+      }
+    }
+    #cv{position:fixed;inset:0;z-index:2;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
     #wrap{height:1000vh;position:relative;z-index:3;}
     #view{position:sticky;top:0;height:100vh;overflow:hidden;pointer-events:none;}
@@ -79,19 +90,25 @@ let isScrolling = false, scrollStopTimer = null, scrollVelocity = 0, lastScrollP
 let currentScale = 1.28;
 let mouseNX = 0, mouseNY = 0, smoothMouseX = 0, smoothMouseY = 0;
 
+
+
 window.addEventListener('mousemove', e => {
   mouseNX = (e.clientX / innerWidth)  * 2 - 1;
   mouseNY = (e.clientY / innerHeight) * 2 - 1;
 });
 
 function updateParallax(p) {
-  scrollVelocity = Math.abs(p - lastScrollP);
+  // Signed delta so rotation direction follows scroll direction
+  const signedDelta = p - lastScrollP;
+  scrollVelocity = Math.abs(signedDelta);
   lastScrollP = p;
+
   if (scrollVelocity > 0.0001) {
     isScrolling = true;
     clearTimeout(scrollStopTimer);
     scrollStopTimer = setTimeout(() => { isScrolling = false; }, 150);
   }
+
   if (!isMob) {
     const scaleTarget = isScrolling ? 1.36 : 1.22;
     currentScale += (scaleTarget - currentScale) * 0.025;
@@ -102,7 +119,7 @@ function updateParallax(p) {
   const driftY = Math.sin(ambientT * 0.35) * 6;
   const breathR = Math.sin(ambientT * 0.25) * 0.25;
   const scrollY = p * -50;
-  const scrollR = p * 0.8;
+  const scrollR = p * 2.2;
   smoothMouseX += (mouseNX - smoothMouseX) * 0.04;
   smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
   const mouseOffX = smoothMouseX * 3;
