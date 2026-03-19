@@ -123,11 +123,16 @@ function updateParallax(p) {
   smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
   const mouseOffX = smoothMouseX * 3;
   const mouseOffR = smoothMouseX * 0.15;
-  bgImg.style.transform =
-    `scale(${currentScale.toFixed(4)})` +
-    ` translateX(${(driftX + mouseOffX).toFixed(2)}px)` +
-    ` translateY(${(scrollY + driftY).toFixed(2)}px)` +
-    ` rotate(${(scrollR + breathR + mouseOffR).toFixed(3)}deg)`;
+
+  if (isMob) {
+    bgImg.style.transform = `scale(${currentScale.toFixed(4)})`;
+  } else {
+    bgImg.style.transform =
+      `scale(${currentScale.toFixed(4)})` +
+      ` translateX(${(driftX + mouseOffX).toFixed(2)}px)` +
+      ` translateY(${(scrollY + driftY).toFixed(2)}px)` +
+      ` rotate(${(scrollR + breathR + mouseOffR).toFixed(3)}deg)`;
+  }
   bgImg.style.filter = `brightness(${isScrolling?1.06:1.0}) saturate(${isScrolling?1.08:1.0})`;
 }
 
