@@ -12,7 +12,6 @@
   <style>
     *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
     html,body{width:100%;background:#020810;overflow-x:hidden;font-family:'Space Mono',monospace;color:#fff}
-
     #bg-img{
       position:fixed;inset:0;z-index:0;
       background-image:url('siral.png');
@@ -31,7 +30,6 @@
         rgba(2,8,16,0.70) 100%
       );
     }
-
     #cv{position:fixed;inset:0;z-index:1;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
     #wrap{height:1000vh;position:relative;z-index:3;}
@@ -76,16 +74,11 @@ const CARDS = [
 const isMob = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
 const bgImg = document.getElementById('bg-img');
-let ambientT    = 0;
-let targetP     = 0;
-
-let isScrolling     = false;
-let scrollStopTimer = null;
-let scrollVelocity  = 0;
-let lastScrollP     = 0;
-let currentScale    = 1.28;
-
+let ambientT = 0, targetP = 0;
+let isScrolling = false, scrollStopTimer = null, scrollVelocity = 0, lastScrollP = 0;
+let currentScale = 1.28;
 let mouseNX = 0, mouseNY = 0, smoothMouseX = 0, smoothMouseY = 0;
+
 window.addEventListener('mousemove', e => {
   mouseNX = (e.clientX / innerWidth)  * 2 - 1;
   mouseNY = (e.clientY / innerHeight) * 2 - 1;
@@ -94,39 +87,32 @@ window.addEventListener('mousemove', e => {
 function updateParallax(p) {
   scrollVelocity = Math.abs(p - lastScrollP);
   lastScrollP = p;
-
   if (scrollVelocity > 0.0001) {
     isScrolling = true;
     clearTimeout(scrollStopTimer);
     scrollStopTimer = setTimeout(() => { isScrolling = false; }, 150);
   }
-
   if (!isMob) {
     const scaleTarget = isScrolling ? 1.36 : 1.22;
     currentScale += (scaleTarget - currentScale) * 0.025;
   } else {
     currentScale = 1.28;
   }
-
   const driftX = Math.sin(ambientT * 0.5) * 5;
   const driftY = Math.sin(ambientT * 0.35) * 6;
   const breathR = Math.sin(ambientT * 0.25) * 0.25;
   const scrollY = p * -50;
   const scrollR = p * 0.8;
-
   smoothMouseX += (mouseNX - smoothMouseX) * 0.04;
   smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
   const mouseOffX = smoothMouseX * 3;
   const mouseOffR = smoothMouseX * 0.15;
-
   bgImg.style.transform =
     `scale(${currentScale.toFixed(4)})` +
     ` translateX(${(driftX + mouseOffX).toFixed(2)}px)` +
     ` translateY(${(scrollY + driftY).toFixed(2)}px)` +
     ` rotate(${(scrollR + breathR + mouseOffR).toFixed(3)}deg)`;
-
-  const bright = isScrolling ? 1.06 : 1.0;
-  bgImg.style.filter = `brightness(${bright}) saturate(${isScrolling ? 1.08 : 1.0})`;
+  bgImg.style.filter = `brightness(${isScrolling?1.06:1.0}) saturate(${isScrolling?1.08:1.0})`;
 }
 
 (function ambientLoop() {
@@ -136,10 +122,7 @@ function updateParallax(p) {
 })();
 
 const canvas   = document.getElementById('cv');
-const renderer = new THREE.WebGLRenderer({
-  canvas, antialias: !isMob, alpha: true,
-  powerPreference: 'high-performance'
-});
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMob, alpha: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 renderer.setClearColor(0x000000, 0);
@@ -266,54 +249,40 @@ function drawCard(idx, sp) {
   s.lastSp = sp;
   if (!s.layout) computeLayout(idx);
   const L = s.layout, c = s.ctx, card = CARDS[idx];
-
   const e = easeOutCubic(sp);
   const SLIDE = CH * 0.055 * (1 - e);
 
   c.clearRect(0, 0, CW, CH);
   c.drawImage(s.bgCanvas, 0, 0);
-
   c.save();
-  c.globalAlpha = e;
 
   /* Number badge */
+  c.globalAlpha = e;
   c.font = `700 ${L.numFs}px "Space Mono",monospace`;
-  c.textAlign = 'center';
-  c.textBaseline = 'middle';
-  c.fillStyle = '#ffffff';
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillStyle = '#ffffff';
   c.fillText(card.num, L.BOX_X + L.BOX_SZ / 2, L.BOX_Y + L.BOX_SZ / 2 + L.numFs * 0.04 + SLIDE);
 
-  /* Title — slight delay */
+  /* Title — slight delay, FIXED: L.BOX_Y not L.BOY_Y */
   const titleE = easeOutCubic(Math.max(0, (sp - 0.10) / 0.90));
   const titleSlide = CH * 0.055 * (1 - titleE);
   c.globalAlpha = titleE;
   c.font = `800 ${L.tFs}px "Syne",sans-serif`;
-  c.textAlign = 'left';
-  c.textBaseline = 'middle';
-  c.shadowColor = 'rgba(100,190,255,0.38)';
-  c.shadowBlur = 20;
+  c.textAlign = 'left'; c.textBaseline = 'middle';
+  c.shadowColor = 'rgba(100,190,255,0.38)'; c.shadowBlur = 20;
   c.fillStyle = 'rgba(255,255,255,0.97)';
   c.fillText(card.title, L.TITLE_X, L.BOX_Y + L.BOX_SZ / 2 + L.tFs * 0.04 + titleSlide);
   c.shadowBlur = 0;
 
   /* Subtitle lines — staggered */
-  c.font = L.mob
-    ? `400 ${L.sFs}px "Syne",sans-serif`
-    : `300 ${L.sFs}px "Syne",sans-serif`;
-  c.textAlign = 'left';
-  c.textBaseline = 'alphabetic';
-
+  c.font = L.mob ? `400 ${L.sFs}px "Syne",sans-serif` : `300 ${L.sFs}px "Syne",sans-serif`;
+  c.textAlign = 'left'; c.textBaseline = 'alphabetic';
   L.lineRanges.forEach(([s2, e2], lineIdx) => {
     const delay = 0.20 + lineIdx * 0.06;
     const lineE = easeOutCubic(Math.max(0, (sp - delay) / (1 - delay)));
     const lineSlide = CH * 0.045 * (1 - lineE);
     c.globalAlpha = lineE * 0.80;
     c.fillStyle = 'rgba(195,225,255,1)';
-    c.fillText(
-      card.sub.slice(s2, e2),
-      L.PX,
-      L.SUB_Y_TOP + L.sFs + lineIdx * L.lh + lineSlide
-    );
+    c.fillText(card.sub.slice(s2, e2), L.PX, L.SUB_Y_TOP + L.sFs + lineIdx * L.lh + lineSlide);
   });
 
   c.restore();
@@ -342,6 +311,25 @@ CARDS.forEach((_, i) => {
   cardObjs.push({ pivot, mat, baseY: baseYArr[i], idx: i, face });
 });
 
+/* ── CRITICAL: set correct initial position + scale before any scroll ── */
+function applyCardTransform(pivot, mat, by, p) {
+  const y = by + p * TOTAL_RISE;
+  const angle = -y * ANGLE_FACTOR;
+  pivot.position.set(Math.sin(angle) * SPIRAL_RADIUS, y, Math.cos(angle) * SPIRAL_RADIUS);
+  pivot.rotation.y = angle;
+  const op = Math.pow(Math.max(0, 1 - Math.abs(y) / FADE_RANGE), 1.4);
+  mat.opacity = op * 0.94;
+  pivot.scale.setScalar(1 + op * 0.06);
+  pivot.visible = op > 0.008;
+  return op;
+}
+
+cardObjs.forEach(({ pivot, mat, baseY, idx }) => {
+  applyCardTransform(pivot, mat, baseY, 0);
+  /* card 01 starts fully opaque */
+  if (idx === 0) mat.opacity = 0.94;
+});
+
 const pGeo = new THREE.BufferGeometry();
 const pN = 500, pP = new Float32Array(pN * 3), pC = new Float32Array(pN * 3);
 for (let i = 0; i < pN; i++) {
@@ -350,19 +338,13 @@ for (let i = 0; i < pN; i++) {
 }
 pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pP, 3));
 pGeo.setAttribute('color',    new THREE.Float32BufferAttribute(pC, 3));
-scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
-  vertexColors:true, size:0.016, transparent:true, opacity:0.32, sizeAttenuation:true
-})));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({ vertexColors:true, size:0.016, transparent:true, opacity:0.32, sizeAttenuation:true })));
 scene.add(new THREE.AmbientLight(0x002244, 1.2));
 const fL = new THREE.DirectionalLight(0x00ccff, 1.1); fL.position.set(2, 3, 10); scene.add(fL);
 const bL = new THREE.PointLight(0x0044ff, 1.6, 22); bL.position.set(-3, 1, -8); scene.add(bL);
 
 gsap.registerPlugin(ScrollTrigger);
-const lenis = new Lenis({
-  duration: 0.8,
-  easing: t => 1 - Math.pow(1 - t, 3),
-  smoothWheel: true,
-});
+const lenis = new Lenis({ duration: 0.8, easing: t => 1 - Math.pow(1 - t, 3), smoothWheel: true });
 lenis.on('scroll', ScrollTrigger.update);
 gsap.ticker.add(t => lenis.raf(t * 1000));
 gsap.ticker.lagSmoothing(0);
@@ -373,15 +355,8 @@ ScrollTrigger.create({
     targetP = self.progress;
     document.getElementById('bar').style.width = (targetP * 100) + '%';
     document.getElementById('hint').style.opacity = targetP > 0.03 ? '0' : '1';
-    cardObjs.forEach(({ pivot, mat, baseY: by, idx }) => {
-      const y = by + targetP * TOTAL_RISE;
-      const angle = -y * ANGLE_FACTOR;
-      pivot.position.set(Math.sin(angle) * SPIRAL_RADIUS, y, Math.cos(angle) * SPIRAL_RADIUS);
-      pivot.rotation.y = angle;
-      const op = Math.pow(Math.max(0, 1 - Math.abs(y) / FADE_RANGE), 1.4);
-      mat.opacity = op * 0.94;
-      pivot.scale.setScalar(1 + op * 0.06);
-      pivot.visible = op > 0.008;
+    cardObjs.forEach(({ pivot, mat, baseY, idx }) => {
+      const op = applyCardTransform(pivot, mat, baseY, targetP);
       const s = cardState[idx];
       if (op > 0.04) s.sp = Math.min(1, s.sp + 0.022);
       else s.sp = Math.max(0, s.sp - 0.06);
@@ -422,8 +397,12 @@ document.fonts.ready.then(() => {
   CARDS.forEach((_, i) => {
     bakeBg(i);
     computeLayout(i);
-    cardState[i].lastSp = -1; /* force redraw with baked bg */
+    cardState[i].lastSp = -1;
     drawCard(i, cardState[i].sp);
+    if (cardObjs[i]) {
+      cardObjs[i].mat.map = cardState[i].tex;
+      cardState[i].tex.needsUpdate = true;
+    }
   });
 });
 </script>
