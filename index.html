@@ -383,7 +383,7 @@ if (isMob) {
   document.body.style.width = '100%';
 
   let mobP = 0, lastTouchY = 0;
-  const TOTAL_SWIPE = innerHeight * 8;
+  const TOTAL_SWIPE = innerHeight * 2.5;
 
   document.addEventListener('touchstart', e => {
     lastTouchY = e.touches[0].clientY;
@@ -415,7 +415,7 @@ let tk = 0, fc = 0;
   tk += 0.005; fc++;
 
   // Smooth displayP toward targetP every frame — gives scrub-like easing on mobile too
-  displayP += (targetP - displayP) * 0.08;
+  displayP += (targetP - displayP) * 0.18;
   applyProgress(displayP);
 
   if (fc % 2 === 0) {
