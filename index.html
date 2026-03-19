@@ -44,7 +44,7 @@
     #cv{position:fixed;inset:0;z-index:2;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
     #wrap{height:1000vh;position:relative;z-index:3;}
-    #view{position:sticky;top:0;height:100vh;overflow:hidden;pointer-events:none;}
+    #view{position:sticky;top:0;height:100vh;height:100dvh;overflow:hidden;pointer-events:none;}
     #hint{
       position:absolute;bottom:36px;left:50%;transform:translateX(-50%);
       font-size:8px;letter-spacing:5px;text-transform:uppercase;
@@ -146,7 +146,7 @@ renderer.setClearColor(0x000000, 0);
 
 const scene  = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(56, innerWidth / innerHeight, 0.1, 100);
-camera.position.set(0, 0.5, 10);
+camera.position.set(0, isMob ? 0 : 0.5, 10);
 camera.lookAt(0, 0, 0);
 
 const isMobile = () => innerWidth < 768;
@@ -392,7 +392,7 @@ let tk = 0, fc = 0;
       if (s.sp > 0.001) { drawCard(idx, s.sp); s.tex.needsUpdate = true; mat.map = s.tex; }
     });
   }
-  camera.position.y = 0.5 + Math.sin(tk * 0.2) * 0.1;
+  camera.position.y = (isMob ? 0 : 0.5) + (isMob ? 0 : Math.sin(tk * 0.2) * 0.1);
   camera.lookAt(0, 0, 0);
   renderer.render(scene, camera);
 })();
