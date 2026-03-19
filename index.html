@@ -17,9 +17,8 @@
       background-image:url('siral.png');
       background-size:cover;
       background-position:center;
-      transform:scale(1.28);
       will-change:transform;
-      transition:filter 2s ease;
+      opacity:0;
     }
     #bg-overlay{
       position:fixed;inset:0;z-index:1;
@@ -87,7 +86,7 @@ const isMob = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 const bgImg = document.getElementById('bg-img');
 let ambientT = 0, targetP = 0;
 let isScrolling = false, scrollStopTimer = null, scrollVelocity = 0, lastScrollP = 0;
-let currentScale = 1.28;
+let currentScale = 1.22;
 let mouseNX = 0, mouseNY = 0, smoothMouseX = 0, smoothMouseY = 0;
 
 
@@ -132,9 +131,12 @@ function updateParallax(p) {
   bgImg.style.filter = `brightness(${isScrolling?1.06:1.0}) saturate(${isScrolling?1.08:1.0})`;
 }
 
+let bgReady = false;
+
 (function ambientLoop() {
   ambientT += 0.007;
   updateParallax(targetP);
+  if (!bgReady) { bgImg.style.opacity = '1'; bgReady = true; }
   requestAnimationFrame(ambientLoop);
 })();
 
