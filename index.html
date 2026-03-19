@@ -22,24 +22,18 @@
     }
     #bg-overlay{
       position:fixed;inset:0;z-index:1;
+      pointer-events:none;
       background:linear-gradient(
         to bottom,
         rgba(2,8,16,0.55) 0%,
         rgba(2,8,16,0.30) 40%,
         rgba(2,8,16,0.70) 100%
       );
-      pointer-events:none;
     }
-    @media (max-width: 768px) {
-      #bg-overlay{
-        background:linear-gradient(
-          to bottom,
-          rgba(2,8,16,0.72) 0%,
-          rgba(2,8,16,0.52) 40%,
-          rgba(2,8,16,0.85) 100%
-        );
-      }
+    @media (max-width:768px){
+      #bg-overlay{ display:none; }
     }
+
     #cv{position:fixed;inset:0;z-index:2;pointer-events:none;display:block;}
     #bar{position:fixed;top:0;left:0;height:2px;width:0%;background:rgba(0,220,255,0.7);z-index:300;}
     #wrap{height:1000vh;position:relative;z-index:3;}
@@ -125,7 +119,7 @@ function updateParallax(p) {
   const mouseOffR = smoothMouseX * 0.15;
 
   if (isMob) {
-    bgImg.style.transform = `scale(1.35)`;
+    bgImg.style.transform = `scale(1)`;
   } else {
     bgImg.style.transform =
       `scale(${currentScale.toFixed(4)})` +
