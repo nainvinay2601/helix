@@ -101,7 +101,6 @@ function updateParallax(p) {
     scrollStopTimer = setTimeout(() => { isScrolling = false; }, 150);
   }
 
-  /* Scale — locked on mobile, gentle breath on desktop */
   if (!isMob) {
     const scaleTarget = isScrolling ? 1.36 : 1.22;
     currentScale += (scaleTarget - currentScale) * 0.025;
@@ -109,21 +108,16 @@ function updateParallax(p) {
     currentScale = 1.28;
   }
 
-  /* Ambient drift — no rotation at all, just gentle xy sway */
-  const driftX = Math.sin(ambientT * 0.5)  * 5;
+  const driftX = Math.sin(ambientT * 0.5) * 5;
   const driftY = Math.sin(ambientT * 0.35) * 6;
-
-  /* Breathing rotation — extremely subtle, just 0.25deg max */
   const breathR = Math.sin(ambientT * 0.25) * 0.25;
-
-  /* Scroll-driven vertical parallax only, near-zero rotation */
   const scrollY = p * -50;
-  const scrollR = p * 0.8;   /* was 12 — now barely perceptible */
+  const scrollR = p * 0.8;
 
   smoothMouseX += (mouseNX - smoothMouseX) * 0.04;
   smoothMouseY += (mouseNY - smoothMouseY) * 0.04;
   const mouseOffX = smoothMouseX * 3;
-  const mouseOffR = smoothMouseX * 0.15; /* was 0.8 */
+  const mouseOffR = smoothMouseX * 0.15;
 
   bgImg.style.transform =
     `scale(${currentScale.toFixed(4)})` +
@@ -141,7 +135,6 @@ function updateParallax(p) {
   requestAnimationFrame(ambientLoop);
 })();
 
-/* ── THREE.JS ── */
 const canvas   = document.getElementById('cv');
 const renderer = new THREE.WebGLRenderer({
   canvas, antialias: !isMob, alpha: true,
@@ -161,12 +154,13 @@ function getCardDims() { return isMobile() ? { W:2.6, H:1.58 } : { W:3.8, H:2.15
 
 const CW = isMob ? 1024 : 1536;
 const CH = isMob ? 576  : 864;
-const GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#%<>/\\|?^~*-+=[]{}:.';
+
+function easeOutCubic(t) { return 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 3); }
 
 const cardState = CARDS.map((_, i) => ({
-  sp: i === 0 ? 1 : 0,  /* card 01 starts fully revealed */
-  lastSp:-1, canvas:null, ctx:null, tex:null,
-  bgCanvas:null, bgCtx:null, layout:null
+  sp: i === 0 ? 1 : 0,
+  lastSp: -1, canvas: null, ctx: null, tex: null,
+  bgCanvas: null, bgCtx: null, layout: null
 }));
 
 function initCard(i) {
@@ -257,146 +251,180 @@ function computeLayout(idx){
   }
   let off=0;
   const lineRanges=rawLines.map(l=>{const s2=off,e=off+l.length;off=e+1;return[s2,e];});
-  s.layout={PX,PY,BOX_SZ,BOX_X,BOX_Y,numFs,TITLE_X,tFs,SUB_Y_TOP,sFs,lineRanges,lh:sFs*1.58,mob};
+  s.layout={PX,PY,BOX_SZ,BOX_X,BOX_Y,numFs,TITLE_X,tFs,SUB_Y_TOP,sFs,lineRanges,lh:sFs*1.58,mob,IW};
 }
 
-function scramble(text,sp){
-  return text.split('').map((ch,i)=>{
-    if(ch===' ')return ' ';
-    return sp>i/text.length?ch:GLYPHS[Math.floor(Math.random()*GLYPHS.length)];
-  }).join('');
-}
 function wrapLines(c,text,maxW){
   const words=text.split(' ');let line='',out=[];
   for(const w of words){const t=line?line+' '+w:w;if(c.measureText(t).width>maxW&&line){out.push(line);line=w;}else line=t;}
   if(line)out.push(line);return out;
 }
-function drawCard(idx,sp){
-  const s=cardState[idx];
-  if(sp>=1&&s.lastSp>=1)return;
-  s.lastSp=sp;
-  if(!s.layout)computeLayout(idx);
-  const L=s.layout,c=s.ctx,card=CARDS[idx];
-  c.clearRect(0,0,CW,CH);c.drawImage(s.bgCanvas,0,0);
-  c.font=`700 ${L.numFs}px "Space Mono",monospace`;
-  c.textAlign='center';c.textBaseline='middle';c.fillStyle='#ffffff';
-  c.fillText(scramble(card.num,sp),L.BOX_X+L.BOX_SZ/2,L.BOX_Y+L.BOX_SZ/2+L.numFs*0.04);
-  c.textBaseline='alphabetic';
-  c.font=`800 ${L.tFs}px "Syne",sans-serif`;
-  c.textAlign='left';c.textBaseline='middle';
-  c.shadowColor='rgba(100,190,255,0.38)';c.shadowBlur=20;c.fillStyle='rgba(255,255,255,0.97)';
-  c.fillText(scramble(card.title,sp),L.TITLE_X,L.BOX_Y+L.BOX_SZ/2+L.tFs*0.04);
-  c.shadowBlur=0;c.textBaseline='alphabetic';
-  const sc=scramble(card.sub,sp);
-  c.font=L.mob?`400 ${L.sFs}px "Syne",sans-serif`:`300 ${L.sFs}px "Syne",sans-serif`;
-  c.fillStyle='rgba(195,225,255,0.80)';c.textAlign='left';
-  L.lineRanges.forEach(([s2,e],i)=>c.fillText(sc.slice(s2,e),L.PX,L.SUB_Y_TOP+L.sFs+i*L.lh));
+
+function drawCard(idx, sp) {
+  const s = cardState[idx];
+  if (sp >= 1 && s.lastSp >= 1) return;
+  s.lastSp = sp;
+  if (!s.layout) computeLayout(idx);
+  const L = s.layout, c = s.ctx, card = CARDS[idx];
+
+  const e = easeOutCubic(sp);
+  const SLIDE = CH * 0.055 * (1 - e);
+
+  c.clearRect(0, 0, CW, CH);
+  c.drawImage(s.bgCanvas, 0, 0);
+
+  c.save();
+  c.globalAlpha = e;
+
+  /* Number badge */
+  c.font = `700 ${L.numFs}px "Space Mono",monospace`;
+  c.textAlign = 'center';
+  c.textBaseline = 'middle';
+  c.fillStyle = '#ffffff';
+  c.fillText(card.num, L.BOX_X + L.BOX_SZ / 2, L.BOX_Y + L.BOX_SZ / 2 + L.numFs * 0.04 + SLIDE);
+
+  /* Title — slight delay */
+  const titleE = easeOutCubic(Math.max(0, (sp - 0.10) / 0.90));
+  const titleSlide = CH * 0.055 * (1 - titleE);
+  c.globalAlpha = titleE;
+  c.font = `800 ${L.tFs}px "Syne",sans-serif`;
+  c.textAlign = 'left';
+  c.textBaseline = 'middle';
+  c.shadowColor = 'rgba(100,190,255,0.38)';
+  c.shadowBlur = 20;
+  c.fillStyle = 'rgba(255,255,255,0.97)';
+  c.fillText(card.title, L.TITLE_X, L.BOX_Y + L.BOX_SZ / 2 + L.tFs * 0.04 + titleSlide);
+  c.shadowBlur = 0;
+
+  /* Subtitle lines — staggered */
+  c.font = L.mob
+    ? `400 ${L.sFs}px "Syne",sans-serif`
+    : `300 ${L.sFs}px "Syne",sans-serif`;
+  c.textAlign = 'left';
+  c.textBaseline = 'alphabetic';
+
+  L.lineRanges.forEach(([s2, e2], lineIdx) => {
+    const delay = 0.20 + lineIdx * 0.06;
+    const lineE = easeOutCubic(Math.max(0, (sp - delay) / (1 - delay)));
+    const lineSlide = CH * 0.045 * (1 - lineE);
+    c.globalAlpha = lineE * 0.80;
+    c.fillStyle = 'rgba(195,225,255,1)';
+    c.fillText(
+      card.sub.slice(s2, e2),
+      L.PX,
+      L.SUB_Y_TOP + L.sFs + lineIdx * L.lh + lineSlide
+    );
+  });
+
+  c.restore();
 }
 
-/* ── SPIRAL — tighter spacing ── */
-const CARD_SPACING=1.4;  /* was 1.8 */
-const SPIRAL_RADIUS=5.0,ANGLE_FACTOR=0.7,FADE_RANGE=4.0;
-const INITIAL_OFFSET=0;
-const TOTAL_RISE=(CARDS.length-1)*CARD_SPACING+INITIAL_OFFSET+CARD_SPACING;
-const baseYArr=CARDS.map((_,i)=>-i*CARD_SPACING-INITIAL_OFFSET);
+/* ── SPIRAL ── */
+const CARD_SPACING = 1.4;
+const SPIRAL_RADIUS = 5.0, ANGLE_FACTOR = 0.7, FADE_RANGE = 4.0;
+const INITIAL_OFFSET = 0;
+const TOTAL_RISE = (CARDS.length - 1) * CARD_SPACING + INITIAL_OFFSET + CARD_SPACING;
+const baseYArr = CARDS.map((_, i) => -i * CARD_SPACING - INITIAL_OFFSET);
 
-const helixGroup=new THREE.Group();scene.add(helixGroup);
-const cardObjs=[];
-CARDS.forEach((_,i)=>{
+const helixGroup = new THREE.Group(); scene.add(helixGroup);
+const cardObjs = [];
+CARDS.forEach((_, i) => {
   initCard(i);
-  const{W,H}=getCardDims();
-  const pivot=new THREE.Group();
-  const mat=new THREE.MeshBasicMaterial({
-    map:cardState[i].tex,transparent:true,
-    opacity: i === 0 ? 0.94 : 0,  /* card 01 starts fully opaque */
-    side:THREE.DoubleSide,depthWrite:false,depthTest:true
+  const { W, H } = getCardDims();
+  const pivot = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({
+    map: cardState[i].tex, transparent: true,
+    opacity: i === 0 ? 0.94 : 0,
+    side: THREE.DoubleSide, depthWrite: false, depthTest: true
   });
-  const face=new THREE.Mesh(new THREE.PlaneGeometry(W,H),mat);
-  face.renderOrder=1;pivot.add(face);helixGroup.add(pivot);
-  cardObjs.push({pivot,mat,baseY:baseYArr[i],idx:i,face});
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(W, H), mat);
+  face.renderOrder = 1; pivot.add(face); helixGroup.add(pivot);
+  cardObjs.push({ pivot, mat, baseY: baseYArr[i], idx: i, face });
 });
 
-const pGeo=new THREE.BufferGeometry();
-const pN=500,pP=new Float32Array(pN*3),pC=new Float32Array(pN*3);
-for(let i=0;i<pN;i++){
-  pP[i*3]=(Math.random()-.5)*35;pP[i*3+1]=(Math.random()-.5)*22;pP[i*3+2]=(Math.random()-.5)*35;
-  pC[i*3]=0;pC[i*3+1]=0.7+Math.random()*0.3;pC[i*3+2]=1;
+const pGeo = new THREE.BufferGeometry();
+const pN = 500, pP = new Float32Array(pN * 3), pC = new Float32Array(pN * 3);
+for (let i = 0; i < pN; i++) {
+  pP[i*3]=(Math.random()-.5)*35; pP[i*3+1]=(Math.random()-.5)*22; pP[i*3+2]=(Math.random()-.5)*35;
+  pC[i*3]=0; pC[i*3+1]=0.7+Math.random()*0.3; pC[i*3+2]=1;
 }
-pGeo.setAttribute('position',new THREE.Float32BufferAttribute(pP,3));
-pGeo.setAttribute('color',new THREE.Float32BufferAttribute(pC,3));
-scene.add(new THREE.Points(pGeo,new THREE.PointsMaterial({vertexColors:true,size:0.016,transparent:true,opacity:0.32,sizeAttenuation:true})));
-scene.add(new THREE.AmbientLight(0x002244,1.2));
-const fL=new THREE.DirectionalLight(0x00ccff,1.1);fL.position.set(2,3,10);scene.add(fL);
-const bL=new THREE.PointLight(0x0044ff,1.6,22);bL.position.set(-3,1,-8);scene.add(bL);
+pGeo.setAttribute('position', new THREE.Float32BufferAttribute(pP, 3));
+pGeo.setAttribute('color',    new THREE.Float32BufferAttribute(pC, 3));
+scene.add(new THREE.Points(pGeo, new THREE.PointsMaterial({
+  vertexColors:true, size:0.016, transparent:true, opacity:0.32, sizeAttenuation:true
+})));
+scene.add(new THREE.AmbientLight(0x002244, 1.2));
+const fL = new THREE.DirectionalLight(0x00ccff, 1.1); fL.position.set(2, 3, 10); scene.add(fL);
+const bL = new THREE.PointLight(0x0044ff, 1.6, 22); bL.position.set(-3, 1, -8); scene.add(bL);
 
 gsap.registerPlugin(ScrollTrigger);
-const lenis=new Lenis({
-  duration:0.8,
-  easing:t=>1-Math.pow(1-t,3),
-  smoothWheel:true,
+const lenis = new Lenis({
+  duration: 0.8,
+  easing: t => 1 - Math.pow(1 - t, 3),
+  smoothWheel: true,
 });
-lenis.on('scroll',ScrollTrigger.update);
-gsap.ticker.add(t=>lenis.raf(t*1000));
+lenis.on('scroll', ScrollTrigger.update);
+gsap.ticker.add(t => lenis.raf(t * 1000));
 gsap.ticker.lagSmoothing(0);
 
 ScrollTrigger.create({
-  trigger:'#wrap',start:'top top',end:'bottom bottom',scrub:0.5,
-  onUpdate:self=>{
-    targetP=self.progress;
-    document.getElementById('bar').style.width=(targetP*100)+'%';
-    document.getElementById('hint').style.opacity=targetP>0.03?'0':'1';
-    cardObjs.forEach(({pivot,mat,baseY:by,idx})=>{
-      const y=by+targetP*TOTAL_RISE,angle=-y*ANGLE_FACTOR;
-      pivot.position.set(Math.sin(angle)*SPIRAL_RADIUS,y,Math.cos(angle)*SPIRAL_RADIUS);
-      pivot.rotation.y=angle;
-      pivot.rotation.x=Math.sin(y*0.5)*0.1;
-      const op=Math.pow(Math.max(0,1-Math.abs(y)/FADE_RANGE),1.4);
-      mat.opacity=op*0.94;pivot.scale.setScalar(1+op*0.06);pivot.visible=op>0.008;
-      const s=cardState[idx];
-      if(op>0.04)s.sp=Math.min(1,s.sp+0.022);
-      else s.sp=Math.max(0,s.sp-0.06);
+  trigger: '#wrap', start: 'top top', end: 'bottom bottom', scrub: 0.5,
+  onUpdate: self => {
+    targetP = self.progress;
+    document.getElementById('bar').style.width = (targetP * 100) + '%';
+    document.getElementById('hint').style.opacity = targetP > 0.03 ? '0' : '1';
+    cardObjs.forEach(({ pivot, mat, baseY: by, idx }) => {
+      const y = by + targetP * TOTAL_RISE;
+      const angle = -y * ANGLE_FACTOR;
+      pivot.position.set(Math.sin(angle) * SPIRAL_RADIUS, y, Math.cos(angle) * SPIRAL_RADIUS);
+      pivot.rotation.y = angle;
+      const op = Math.pow(Math.max(0, 1 - Math.abs(y) / FADE_RANGE), 1.4);
+      mat.opacity = op * 0.94;
+      pivot.scale.setScalar(1 + op * 0.06);
+      pivot.visible = op > 0.008;
+      const s = cardState[idx];
+      if (op > 0.04) s.sp = Math.min(1, s.sp + 0.022);
+      else s.sp = Math.max(0, s.sp - 0.06);
     });
   }
 });
 
-let tk=0,fc=0;
-(function loop(){
+let tk = 0, fc = 0;
+(function loop() {
   requestAnimationFrame(loop);
-  tk+=0.005;fc++;
-
-  const tiltX = smoothMouseY * 0.06;
-  const tiltY = smoothMouseX * 0.04;
-
-  if(fc%2===0){
-    cardObjs.forEach(({mat,idx,pivot})=>{
-      if(!pivot.visible)return;
-      const s=cardState[idx];
-      if(s.sp>0.001){drawCard(idx,s.sp);s.tex.needsUpdate=true;mat.map=s.tex;}
-      pivot.rotation.x += (tiltX - pivot.rotation.x) * 0.08;
-      pivot.rotation.y += tiltY * 0.04;
+  tk += 0.005; fc++;
+  if (fc % 2 === 0) {
+    cardObjs.forEach(({ mat, idx, pivot }) => {
+      if (!pivot.visible) return;
+      const s = cardState[idx];
+      if (s.sp > 0.001) { drawCard(idx, s.sp); s.tex.needsUpdate = true; mat.map = s.tex; }
     });
   }
-
-  camera.position.y=0.5+Math.sin(tk*0.2)*0.1;
-  camera.lookAt(0,0,0);
-  renderer.render(scene,camera);
+  camera.position.y = 0.5 + Math.sin(tk * 0.2) * 0.1;
+  camera.lookAt(0, 0, 0);
+  renderer.render(scene, camera);
 })();
 
-window.addEventListener('resize',()=>{
-  renderer.setSize(innerWidth,innerHeight);
-  camera.aspect=innerWidth/innerHeight;
+window.addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
   camera.updateProjectionMatrix();
-  const{W,H}=getCardDims();
-  cardObjs.forEach(({face,idx})=>{
+  const { W, H } = getCardDims();
+  cardObjs.forEach(({ face, idx }) => {
     face.geometry.dispose();
-    face.geometry=new THREE.PlaneGeometry(W,H);
-    cardState[idx].layout=null;
+    face.geometry = new THREE.PlaneGeometry(W, H);
+    cardState[idx].layout = null;
     bakeBg(idx);
   });
 });
 
-document.fonts.ready.then(()=>{
-  CARDS.forEach((_,i)=>{bakeBg(i);computeLayout(i);drawCard(i,0);});
+document.fonts.ready.then(() => {
+  CARDS.forEach((_, i) => {
+    bakeBg(i);
+    computeLayout(i);
+    cardState[i].lastSp = -1; /* force redraw with baked bg */
+    drawCard(i, cardState[i].sp);
+  });
 });
 </script>
 </body>
